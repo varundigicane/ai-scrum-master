@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+dev.db
+*.db
+playwright-report
+test-results
+coverage
+docs
+e2e
+prisma/migrations_sqlite_archive
+*.md
+!README.md
