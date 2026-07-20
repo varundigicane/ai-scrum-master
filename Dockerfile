@@ -4,6 +4,11 @@ WORKDIR /app
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
+# postinstall runs `prisma generate` — schema must exist before npm ci
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+# prisma generate needs a URL present in prisma.config.ts (not used for a real connection)
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 RUN npm ci
 
 FROM node:20-bookworm-slim AS builder
@@ -12,10 +17,9 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-c
   && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# prisma generate needs a URL present in prisma.config.ts (not used for a real connection)
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npx prisma generate && npm run build
+RUN npx prisma generate && npx next build
 
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
