@@ -1,0 +1,609 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CompanyAdmin
+  CEO
+  SVP
+  VP
+  AVP
+  ProjectManager
+  Employee
+}
+
+enum ProjectPhase {
+  Requirements
+  Design
+  Dev
+  Test
+  UAT
+  Closed
+}
+
+enum LeaveType {
+  internal
+  client_informed
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+}
+
+enum TestCaseStatus {
+  not_run
+  pass
+  fail
+  blocked
+}
+
+enum DefectSource {
+  internal
+  client_informed
+}
+
+enum DefectSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum DefectStatus {
+  open
+  in_progress
+  resolved
+  closed
+}
+
+enum StatusRequestState {
+  pending
+  submitted
+  expired
+  skipped_leave
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  blocked
+  done
+}
+
+enum WeeklyReportScope {
+  resource
+  project
+  account
+  company
+}
+
+enum RequirementKind {
+  epic
+  feature
+  story
+}
+
+enum TaskKind {
+  task
+  subtask
+}
+
+enum RcaStatus {
+  draft
+  in_progress
+  pending_review
+  closed
+}
+
+model Company {
+  id                   String   @id @default(cuid())
+  name                 String
+  timezone             String   @default("Asia/Kolkata")
+  statusWindowStart    String   @default("17:00")
+  statusWindowHours    Int      @default(2)
+  weeklyReportDay      Int      @default(1)
+  weeklyReportTime     String   @default("09:00")
+  deadlineWarnDays     String   @default("3,1")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  users                 User[]
+  accounts              Account[]
+  resources             Resource[]
+  statusWindows         StatusWindow[]
+  notificationLogs      NotificationLog[]
+  weeklyReports         WeeklyReport[]
+  billingMonthOverrides BillingMonthOverride[]
+  roleFeatures          RoleFeature[]
+  gtsMonthlyReports     GtsMonthlyReport[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  companyId    String
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(Employee)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  resource Resource?
+
+  @@index([companyId])
+}
+
+/// Per-company override: which features each role can see/use (show/hide)
+model RoleFeature {
+  id        String   @id @default(cuid())
+  companyId String
+  role      Role
+  feature   String
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, role, feature])
+  @@index([companyId])
+}
+
+model Account {
+  id               String   @id @default(cuid())
+  companyId        String
+  name             String
+  code             String?
+  /// GTS header: technologies (e.g. JAVA, .NET, React JS)
+  technology       String?
+  /// GTS header: domain (e.g. Banking & Finance)
+  domain           String?
+  /// GTS header: comma-separated PM names
+  projectManagers  String?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projects          Project[]
+  gtsMonthlyReports GtsMonthlyReport[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Project {
+  id          String       @id @default(cuid())
+  accountId   String
+  name        String
+  code        String?
+  phase       ProjectPhase @default(Requirements)
+  description String?
+  active      Boolean      @default(true)
+  billable    Boolean      @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  account             Account              @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assignments         ResourceAssignment[]
+  tasks               Task[]
+  requirements        Requirement[]
+  testCases           TestCase[]
+  defects             Defect[]
+  leaves              Leave[]
+  dailyStatusEntries  DailyStatus[]
+  extraWorkingDays    ExtraWorkingDay[]
+  gtsMonthlyLines     GtsMonthlyLine[]
+
+  @@unique([accountId, name])
+  @@index([accountId])
+}
+
+model Resource {
+  id         String   @id @default(cuid())
+  companyId  String
+  userId     String?  @unique
+  employeeId String?
+  name       String
+  email      String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?                @relation(fields: [userId], references: [id])
+  assignments ResourceAssignment[]
+  tasks       Task[]
+  leaves      Leave[]
+  statusReqs  StatusRequest[]
+  dailyStatus DailyStatus[]
+  extraWorkingDays ExtraWorkingDay[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([companyId, employeeId])
+}
+
+model ResourceAssignment {
+  id          String   @id @default(cuid())
+  projectId   String
+  resourceId  String
+  capacityPct Int      @default(100)
+  /// Billing rate per hour for this resource on this project (used only when billable=true)
+  hourlyRate  Float    @default(0)
+  /// Per resource × project: if false, rate is ignored and amount is 0
+  billable    Boolean  @default(true)
+  roleLabel   String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, resourceId])
+}
+
+/// Extra working day (e.g. weekend) that adds to billable days for a resource on a project
+model ExtraWorkingDay {
+  id         String   @id @default(cuid())
+  resourceId String
+  projectId  String
+  date       DateTime
+  note       String?
+  createdAt  DateTime @default(now())
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, projectId, date])
+  @@index([resourceId, date])
+}
+
+/// Optional override for total working days in a calendar month (else weekdays are computed)
+model BillingMonthOverride {
+  id               String   @id @default(cuid())
+  companyId        String
+  year             Int
+  month            Int
+  totalWorkingDays Int
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year, month])
+}
+
+model Task {
+  id                 String       @id @default(cuid())
+  projectId          String
+  resourceId         String?
+  parentId           String?
+  kind               TaskKind     @default(task)
+  phase              ProjectPhase @default(Dev)
+  title              String
+  description        String?
+  status             TaskStatus   @default(todo)
+  progressPct        Int          @default(0)
+  estimateDays       Float?
+  estimateHours      Float?
+  startDate          DateTime?
+  endDate            DateTime?
+  clientDeadline     DateTime?
+  resourceDeadline   DateTime?
+  requirementId      String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  resource    Resource?    @relation(fields: [resourceId], references: [id])
+  requirement Requirement? @relation(fields: [requirementId], references: [id])
+  parent      Task?        @relation("TaskTree", fields: [parentId], references: [id])
+  children    Task[]       @relation("TaskTree")
+  dailyItems  DailyStatusItem[]
+  defects     Defect[]
+
+  @@index([projectId])
+  @@index([resourceId])
+  @@index([parentId])
+  @@index([phase])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([clientDeadline])
+  @@index([resourceDeadline])
+}
+
+model Requirement {
+  id          String          @id @default(cuid())
+  projectId   String
+  parentId    String?
+  kind        RequirementKind @default(story)
+  title       String
+  description String?
+  level       Int             @default(1)
+  closed      Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent    Requirement?  @relation("ReqTree", fields: [parentId], references: [id])
+  children  Requirement[] @relation("ReqTree")
+  tasks     Task[]
+  testCases TestCase[]
+  defects   Defect[]
+
+  @@index([projectId])
+  @@index([kind])
+}
+
+model TestCase {
+  id            String         @id @default(cuid())
+  projectId     String
+  requirementId String?
+  title         String
+  steps         String?
+  expected      String?
+  status        TestCaseStatus @default(not_run)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirement Requirement? @relation(fields: [requirementId], references: [id])
+  defects     Defect[]
+
+  @@index([projectId])
+}
+
+model Defect {
+  id            String         @id @default(cuid())
+  projectId     String
+  title         String
+  description   String?
+  source        DefectSource   @default(internal)
+  severity      DefectSeverity @default(medium)
+  status        DefectStatus   @default(open)
+  taskId        String?
+  requirementId String?
+  testCaseId    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?        @relation(fields: [taskId], references: [id])
+  requirement Requirement? @relation(fields: [requirementId], references: [id])
+  testCase    TestCase?    @relation(fields: [testCaseId], references: [id])
+  rca         RCA?
+  reviewSheet ReviewSheet?
+
+  @@index([projectId])
+}
+
+model RCA {
+  id                  String    @id @default(cuid())
+  defectId            String    @unique
+  problemStatement    String?
+  rootCause           String
+  contributingFactors String?
+  impact              String?
+  containmentAction   String?
+  correctiveAction    String
+  preventiveAction    String?
+  owner               String?
+  targetDate          DateTime?
+  status              RcaStatus @default(draft)
+  reviewNotes         String?
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  defect      Defect       @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  reviewSheet ReviewSheet?
+}
+
+/// Detailed review sheet for internal or client-informed defects
+model ReviewSheet {
+  id                    String    @id @default(cuid())
+  defectId              String    @unique
+  rcaId                 String?   @unique
+  reviewDate            DateTime  @default(now())
+  reviewerName          String?
+  reviewType            String    @default("internal")
+  scopeSummary          String?
+  codeReviewDone        Boolean   @default(false)
+  testReviewDone        Boolean   @default(false)
+  documentationUpdated  Boolean   @default(false)
+  clientCommunication   Boolean   @default(false)
+  regressionCovered     Boolean   @default(false)
+  findings              String?
+  actionItems           String?
+  residualRisk          String?
+  signOff               String?
+  signOffAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  defect Defect @relation(fields: [defectId], references: [id], onDelete: Cascade)
+  rca    RCA?   @relation(fields: [rcaId], references: [id])
+}
+
+model Leave {
+  id         String      @id @default(cuid())
+  projectId  String?
+  resourceId String
+  type       LeaveType
+  status     LeaveStatus @default(approved)
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  createdAt  DateTime    @default(now())
+
+  project  Project? @relation(fields: [projectId], references: [id])
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+  @@index([startDate, endDate])
+}
+
+model StatusWindow {
+  id        String   @id @default(cuid())
+  companyId String
+  date      DateTime
+  startsAt  DateTime
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requests StatusRequest[]
+
+  @@unique([companyId, date])
+  @@index([companyId, expiresAt])
+}
+
+model StatusRequest {
+  id             String             @id @default(cuid())
+  statusWindowId String
+  resourceId     String
+  tokenHash      String             @unique
+  tokenHint      String
+  state          StatusRequestState @default(pending)
+  emailSentAt    DateTime?
+  openedAt       DateTime?
+  submittedAt    DateTime?
+  createdAt      DateTime           @default(now())
+
+  statusWindow StatusWindow @relation(fields: [statusWindowId], references: [id], onDelete: Cascade)
+  resource     Resource     @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  dailyStatus  DailyStatus?
+
+  @@unique([statusWindowId, resourceId])
+  @@index([resourceId])
+}
+
+model DailyStatus {
+  id               String   @id @default(cuid())
+  statusRequestId  String   @unique
+  resourceId       String
+  projectId        String?
+  date             DateTime
+  productiveHours  Float    @default(0)
+  nonProductiveHours Float  @default(0)
+  narrative        String?
+  blockers         String?
+  progressPct      Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  statusRequest StatusRequest     @relation(fields: [statusRequestId], references: [id], onDelete: Cascade)
+  resource      Resource          @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  project       Project?          @relation(fields: [projectId], references: [id])
+  items         DailyStatusItem[]
+
+  @@index([resourceId, date])
+}
+
+model DailyStatusItem {
+  id            String @id @default(cuid())
+  dailyStatusId String
+  taskId        String?
+  taskTitle     String?
+  hours         Float  @default(0)
+  progressPct   Int?
+  notes         String?
+
+  dailyStatus DailyStatus @relation(fields: [dailyStatusId], references: [id], onDelete: Cascade)
+  task        Task?       @relation(fields: [taskId], references: [id])
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  companyId String
+  type      String
+  dedupeKey String
+  recipients String
+  subject   String
+  body      String
+  entityType String?
+  entityId  String?
+  sentAt    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, dedupeKey])
+  @@index([companyId, type])
+}
+
+model WeeklyReport {
+  id          String           @id @default(cuid())
+  companyId   String
+  scope       WeeklyReportScope
+  scopeId     String
+  periodStart DateTime
+  periodEnd   DateTime
+  metricsJson String
+  narrative   String?
+  emailedTo   String?
+  generatedAt DateTime         @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, scope, periodStart])
+}
+
+/// Month-wise GTS (Global Technology Services) status / effort report per client account
+model GtsMonthlyReport {
+  id                    String   @id @default(cuid())
+  companyId             String
+  accountId             String
+  year                  Int
+  month                 Int
+  /// Header overrides (fall back to Account fields when null)
+  projectName           String?
+  projectManagers       String?
+  technology            String?
+  domain                String?
+  /// Overall billable resource utilization % for the month (editable; auto-filled on generate)
+  utilizationPct        Float?
+  /// Resource availability % for the month
+  availabilityPct       Float?
+  remarks               String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  lines   GtsMonthlyLine[]
+
+  @@unique([accountId, year, month])
+  @@index([companyId, year, month])
+}
+
+model GtsMonthlyLine {
+  id              String  @id @default(cuid())
+  reportId        String
+  projectId       String?
+  sortOrder       Int     @default(0)
+  subProjectName  String
+  featureName     String  @default("")
+  uatDefects      Int     @default(0)
+  actualEffortHrs Float   @default(0)
+  remarks         String?
+
+  report  GtsMonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  project Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([projectId])
+}

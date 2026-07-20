@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aiscrum
+      POSTGRES_PASSWORD: aiscrum
+      POSTGRES_DB: aiscrum
+    ports:
+      - "5432:5432"
+    volumes:
+      - aiscrum_pg:/var/lib/postgresql/data
+
+volumes:
+  aiscrum_pg:
