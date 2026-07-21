@@ -9,7 +9,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump when models are added so HMR does not keep a stale PrismaClient singleton. */
-const PRISMA_SCHEMA_VERSION = "railway-pg-v1";
+const PRISMA_SCHEMA_VERSION = "work-item-display-id-v1";
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -21,11 +21,14 @@ function createPrismaClient() {
     globalForPrisma.pgPool ??
     new Pool({
       connectionString,
-      // Railway / managed Postgres often need SSL in production
+      // Railway / managed Postgres need SSL; local Docker Postgres does not.
+      // Set PGSSLMODE=disable for local compose; PGSSLMODE=require forces SSL.
       ssl:
-        process.env.NODE_ENV === "production" || process.env.PGSSLMODE === "require"
-          ? { rejectUnauthorized: false }
-          : undefined,
+        process.env.PGSSLMODE === "disable"
+          ? undefined
+          : process.env.NODE_ENV === "production" || process.env.PGSSLMODE === "require"
+            ? { rejectUnauthorized: false }
+            : undefined,
     });
 
   if (process.env.NODE_ENV !== "production") {

@@ -192,6 +192,8 @@ model Project {
   billable    Boolean      @default(true)
   startDate   DateTime?
   endDate     DateTime?
+  /** Last issued work-item display number (shared across epic/feature/story/task/subtask). */
+  workItemSeq Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -289,6 +291,8 @@ model BillingMonthOverride {
 model Task {
   id                 String       @id @default(cuid())
   projectId          String
+  /** Human-readable ID e.g. ACME-3 — immutable after create */
+  displayId          String?
   resourceId         String?
   parentId           String?
   kind               TaskKind     @default(task)
@@ -315,6 +319,7 @@ model Task {
   dailyItems  DailyStatusItem[]
   defects     Defect[]
 
+  @@unique([projectId, displayId])
   @@index([projectId])
   @@index([resourceId])
   @@index([parentId])
@@ -328,6 +333,8 @@ model Task {
 model Requirement {
   id          String          @id @default(cuid())
   projectId   String
+  /** Human-readable ID e.g. ACME-1 — immutable after create */
+  displayId   String?
   parentId    String?
   kind        RequirementKind @default(story)
   title       String
@@ -344,6 +351,7 @@ model Requirement {
   testCases TestCase[]
   defects   Defect[]
 
+  @@unique([projectId, displayId])
   @@index([projectId])
   @@index([kind])
 }

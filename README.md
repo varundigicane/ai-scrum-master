@@ -19,11 +19,24 @@ Standalone multi-tenant delivery platform that replaces manual Scrum Master stat
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Deployment & NFRs | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
 | **Railway deploy** | [docs/RAILWAY.md](docs/RAILWAY.md) |
+| **Local Docker Desktop** | [docs/DOCKER_LOCAL.md](docs/DOCKER_LOCAL.md) |
 | Functional Usage Guide | [docs/FUNCTIONAL_USAGE_GUIDE.md](docs/FUNCTIONAL_USAGE_GUIDE.md) |
 
-## Quick start
+## Quick start (Docker Desktop — full stack)
 
-Requires **PostgreSQL** (local Docker or Railway).
+Same Postgres + production app image as Railway:
+
+```bash
+cd ai-scrum-master
+npm run docker:up
+npm run docker:seed
+```
+
+Open [http://localhost:3001](http://localhost:3001) — details in [docs/DOCKER_LOCAL.md](docs/DOCKER_LOCAL.md).
+
+> Full-stack Compose uses host ports **3001** (app) and **5433** (Postgres) so they do not clash with a local `npm run dev` on 3000 / Postgres on 5432.
+
+## Quick start (host Next.js + Docker Postgres)
 
 ```bash
 cd ai-scrum-master

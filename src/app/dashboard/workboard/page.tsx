@@ -11,6 +11,7 @@ import {
   taskOverlapsPeriod,
   type WorkPeriod,
 } from "@/lib/workboard";
+import { workItemLabel } from "@/lib/work-item-id";
 
 export default async function WorkboardPage({
   searchParams,
@@ -223,7 +224,7 @@ export default async function WorkboardPage({
           <div key={epic.id} className="border border-[var(--border)] rounded-xl p-3 space-y-2">
             <div className="flex gap-2 items-center">
               <span className="badge">Epic</span>
-              <strong>{epic.title}</strong>
+              <strong>{workItemLabel(epic.displayId, epic.title)}</strong>
             </div>
             {features
               .filter((f) => f.parentId === epic.id)
@@ -231,7 +232,7 @@ export default async function WorkboardPage({
                 <div key={feature.id} className="ml-4 border-l border-[var(--border)] pl-3 space-y-2">
                   <div className="flex gap-2 items-center">
                     <span className="badge">Feature</span>
-                    <span>{feature.title}</span>
+                    <span>{workItemLabel(feature.displayId, feature.title)}</span>
                   </div>
                   {stories
                     .filter((s) => s.parentId === feature.id)
@@ -239,7 +240,7 @@ export default async function WorkboardPage({
                       <div key={story.id} className="ml-4 space-y-1">
                         <div className="flex gap-2 items-center text-sm">
                           <span className="badge">Story</span>
-                          <span>{story.title}</span>
+                          <span>{workItemLabel(story.displayId, story.title)}</span>
                         </div>
                         {story.tasks.map((t) => {
                           const plannedD = plannedDaysInPeriod(t, start, end);
@@ -247,13 +248,14 @@ export default async function WorkboardPage({
                           const actualH = actualHours(t.id);
                           return (
                             <div key={t.id} className="ml-4 text-sm text-[var(--muted)]">
-                              Task: {t.title} · {t.phase} · {t.resource?.name ?? "Unassigned"} · Est{" "}
-                              {fmtDays(taskEstimateDays(t))}d · Planned {fmtDays(plannedD)}d (
-                              {plannedH.toFixed(1)}h) · Actual {actualH.toFixed(1)}h ({label})
+                              Task: {workItemLabel(t.displayId, t.title)} · {t.phase} ·{" "}
+                              {t.resource?.name ?? "Unassigned"} · Est {fmtDays(taskEstimateDays(t))}d ·
+                              Planned {fmtDays(plannedD)}d ({plannedH.toFixed(1)}h) · Actual{" "}
+                              {actualH.toFixed(1)}h ({label})
                               {t.children.map((c) => (
                                 <div key={c.id} className="ml-4">
-                                  Subtask: {c.title} · Est {fmtDays(taskEstimateDays(c))}d · Actual{" "}
-                                  {actualHours(c.id).toFixed(1)}h
+                                  Subtask: {workItemLabel(c.displayId, c.title)} · Est{" "}
+                                  {fmtDays(taskEstimateDays(c))}d · Actual {actualHours(c.id).toFixed(1)}h
                                 </div>
                               ))}
                             </div>
@@ -269,14 +271,14 @@ export default async function WorkboardPage({
           .filter((f) => !f.parentId || !epics.some((e) => e.id === f.parentId))
           .map((feature) => (
             <div key={feature.id} className="border border-[var(--border)] rounded-xl p-3">
-              <span className="badge">Feature</span> {feature.title}
+              <span className="badge">Feature</span> {workItemLabel(feature.displayId, feature.title)}
             </div>
           ))}
         {stories
           .filter((s) => !s.parentId || !features.some((f) => f.id === s.parentId))
           .map((story) => (
             <div key={story.id} className="border border-[var(--border)] rounded-xl p-3">
-              <span className="badge">Story</span> {story.title}
+              <span className="badge">Story</span> {workItemLabel(story.displayId, story.title)}
             </div>
           ))}
       </section>
@@ -289,6 +291,7 @@ export default async function WorkboardPage({
           <thead>
             <tr>
               <th>Kind</th>
+              <th>ID</th>
               <th>Title</th>
               <th>Phase</th>
               <th>Project</th>
@@ -312,6 +315,7 @@ export default async function WorkboardPage({
                   <td>
                     <span className="badge">{t.kind}</span>
                   </td>
+                  <td className="font-mono text-sm text-sky-300">{t.displayId ?? "—"}</td>
                   <td>
                     {t.parent ? <span className="text-[var(--muted)]">↳ </span> : null}
                     {t.title}

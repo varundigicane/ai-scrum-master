@@ -10,6 +10,7 @@ import {
   createTestCase,
   updateProjectBilling,
 } from "@/app/actions";
+import { workItemLabel } from "@/lib/work-item-id";
 
 export default async function ProjectDetailPage({
   params,
@@ -130,7 +131,7 @@ export default async function ProjectDetailPage({
               .filter((t) => t.kind === "task")
               .map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.title}
+                  {workItemLabel(t.displayId, t.title)}
                 </option>
               ))}
           </select>
@@ -153,7 +154,7 @@ export default async function ProjectDetailPage({
             <option value="">Link story/feature (optional)</option>
             {project.requirements.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.kind}: {r.title}
+                {r.kind}: {workItemLabel(r.displayId, r.title)}
               </option>
             ))}
           </select>
@@ -215,6 +216,7 @@ export default async function ProjectDetailPage({
           <thead>
             <tr>
               <th>Kind</th>
+              <th>ID</th>
               <th>Title</th>
               <th>Phase</th>
               <th>Owner</th>
@@ -232,6 +234,7 @@ export default async function ProjectDetailPage({
                 <td>
                   <span className="badge">{t.kind}</span>
                 </td>
+                <td className="font-mono text-sm text-sky-300">{t.displayId ?? "—"}</td>
                 <td>
                   {t.title}
                   {t.description ? (
@@ -266,6 +269,7 @@ export default async function ProjectDetailPage({
           <thead>
             <tr>
               <th>Kind</th>
+              <th>ID</th>
               <th>Title</th>
               <th>Closed</th>
             </tr>
@@ -276,6 +280,7 @@ export default async function ProjectDetailPage({
                 <td>
                   <span className="badge">{r.kind}</span>
                 </td>
+                <td className="font-mono text-sm text-sky-300">{r.displayId ?? "—"}</td>
                 <td>{r.title}</td>
                 <td>{r.closed ? "Yes" : "No"}</td>
               </tr>
@@ -293,7 +298,7 @@ export default async function ProjectDetailPage({
             <option value="">No requirement</option>
             {project.requirements.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.title}
+                {workItemLabel(r.displayId, r.title)}
               </option>
             ))}
           </select>
@@ -344,7 +349,7 @@ export default async function ProjectDetailPage({
             {project.testCases.map((t) => (
               <tr key={t.id}>
                 <td>{t.title}</td>
-                <td>{t.requirement?.title ?? "—"}</td>
+                <td>{t.requirement ? workItemLabel(t.requirement.displayId, t.requirement.title) : "—"}</td>
                 <td>
                   <span className="badge">{t.status}</span>
                 </td>

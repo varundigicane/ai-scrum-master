@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getProjectAccess } from "@/lib/project-access";
 import { assertDeliveryEdit, assertFeature, assertSession } from "@/lib/assert-feature";
+import { allocateDisplayId } from "@/lib/work-item-id";
 import type { DefectSource, DefectSeverity, LeaveType, ProjectPhase, TestCaseStatus } from "@/generated/prisma/client";
 
 async function companyId() {
@@ -299,25 +300,29 @@ export async function createTask(formData: FormData) {
     | "blocked"
     | "done";
 
-  await prisma.task.create({
-    data: {
-      projectId,
-      title,
-      description,
-      resourceId,
-      parentId: kind === "subtask" || parentId ? parentId : null,
-      kind: parentId || kind === "subtask" ? "subtask" : "task",
-      phase,
-      requirementId,
-      progressPct,
-      status,
-      estimateDays,
-      estimateHours: estimateDays != null ? estimateDays * 8 : null,
-      startDate,
-      endDate,
-      clientDeadline,
-      resourceDeadline,
-    },
+  await prisma.$transaction(async (tx) => {
+    const displayId = await allocateDisplayId(tx, projectId);
+    await tx.task.create({
+      data: {
+        projectId,
+        displayId,
+        title,
+        description,
+        resourceId,
+        parentId: kind === "subtask" || parentId ? parentId : null,
+        kind: parentId || kind === "subtask" ? "subtask" : "task",
+        phase,
+        requirementId,
+        progressPct,
+        status,
+        estimateDays,
+        estimateHours: estimateDays != null ? estimateDays * 8 : null,
+        startDate,
+        endDate,
+        clientDeadline,
+        resourceDeadline,
+      },
+    });
   });
   revalidatePath(`/dashboard/projects/${projectId}`);
   revalidatePath(`/dashboard/projects/${projectId}/backlog`);
@@ -423,8 +428,11 @@ export async function createRequirement(formData: FormData) {
   const description = String(formData.get("description") ?? "") || null;
   const closed = String(formData.get("closed") ?? "") === "yes";
   const level = kind === "epic" ? 1 : kind === "feature" ? 2 : 3;
-  await prisma.requirement.create({
-    data: { projectId, title, parentId, kind, level, description, closed },
+  await prisma.$transaction(async (tx) => {
+    const displayId = await allocateDisplayId(tx, projectId);
+    await tx.requirement.create({
+      data: { projectId, displayId, title, parentId, kind, level, description, closed },
+    });
   });
   revalidatePath(`/dashboard/projects/${projectId}`);
   revalidatePath(`/dashboard/projects/${projectId}/backlog`);

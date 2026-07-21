@@ -7,9 +7,48 @@ services:
       POSTGRES_PASSWORD: aiscrum
       POSTGRES_DB: aiscrum
     ports:
-      - "5432:5432"
+      # Host 5433 avoids clash with a local Postgres on 5432; containers still use db:5432
+      - "5433:5432"
     volumes:
       - aiscrum_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiscrum -d aiscrum"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Host 3001 avoids clash with a local Next.js on 3000
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://aiscrum:aiscrum@db:5432/aiscrum
+      AUTH_SECRET: local-docker-auth-secret-change-me
+      NEXTAUTH_URL: http://localhost:3001
+      APP_URL: http://localhost:3001
+      AUTH_TRUST_HOST: "true"
+      CRON_SECRET: local-cron-secret
+      EMAIL_FROM: "AI Scrum Master <noreply@localhost>"
+      PGSSLMODE: disable
+    depends_on:
+      db:
+        condition: service_healthy
+    # Local-only: migrate then start (Railway uses railway.toml preDeploy + npm start)
+    command: ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
 
 volumes:
   aiscrum_pg:

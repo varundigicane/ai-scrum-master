@@ -10,6 +10,7 @@ import {
   updateRequirement,
   updateTask,
 } from "@/app/actions";
+import { workItemLabel } from "@/lib/work-item-id";
 
 const PHASES = ["Requirements", "Design", "Dev", "Test", "UAT", "Closed"] as const;
 const STATUSES = ["todo", "in_progress", "blocked", "done"] as const;
@@ -79,6 +80,7 @@ export default async function ProjectBacklogPage({
             <thead>
               <tr>
                 <th>Kind</th>
+                <th>ID</th>
                 <th>Title</th>
                 <th>Parent</th>
                 <th>Closed</th>
@@ -93,8 +95,11 @@ export default async function ProjectBacklogPage({
                     <td>
                       <span className="badge">{r.kind}</span>
                     </td>
+                    <td className="font-mono text-sm text-sky-300">{r.displayId ?? "—"}</td>
                     <td>{r.title}</td>
-                    <td className="text-sm">{parent ? `${parent.kind}: ${parent.title}` : "—"}</td>
+                    <td className="text-sm">
+                      {parent ? `${parent.kind}: ${workItemLabel(parent.displayId, parent.title)}` : "—"}
+                    </td>
                     <td>{r.closed ? "Yes" : "No"}</td>
                     {canEditAll ? (
                       <td className="align-top">
@@ -115,7 +120,7 @@ export default async function ProjectBacklogPage({
                                 .filter((p) => p.id !== r.id)
                                 .map((p) => (
                                   <option key={p.id} value={p.id}>
-                                    {p.kind}: {p.title}
+                                    {workItemLabel(p.displayId, p.title)} ({p.kind})
                                   </option>
                                 ))}
                             </select>
@@ -173,7 +178,7 @@ export default async function ProjectBacklogPage({
               <option value="">None</option>
               {requirements.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.kind}: {r.title}
+                  {r.kind}: {workItemLabel(r.displayId, r.title)}
                 </option>
               ))}
             </select>
@@ -200,6 +205,7 @@ export default async function ProjectBacklogPage({
             <thead>
               <tr>
                 <th>Kind</th>
+                <th>ID</th>
                 <th>Title</th>
                 <th>Phase</th>
                 <th>Assignee</th>
@@ -216,8 +222,13 @@ export default async function ProjectBacklogPage({
                   <td>
                     <span className="badge">{t.kind}</span>
                   </td>
+                  <td className="font-mono text-sm text-sky-300">{t.displayId ?? "—"}</td>
                   <td>
-                    {t.parent ? <span className="text-[var(--muted)]">↳ {t.parent.title} / </span> : null}
+                    {t.parent ? (
+                      <span className="text-[var(--muted)]">
+                        ↳ {workItemLabel(t.parent.displayId, t.parent.title)} /{" "}
+                      </span>
+                    ) : null}
                     {t.title}
                     {t.description ? (
                       <p className="text-xs text-[var(--muted)] mt-0.5 line-clamp-2">{t.description}</p>
@@ -262,7 +273,7 @@ export default async function ProjectBacklogPage({
                                 .filter((p) => p.id !== t.id)
                                 .map((p) => (
                                   <option key={p.id} value={p.id}>
-                                    {p.title}
+                                    {workItemLabel(p.displayId, p.title)}
                                   </option>
                                 ))}
                             </select>
@@ -290,7 +301,7 @@ export default async function ProjectBacklogPage({
                               <option value="">No story link</option>
                               {requirements.map((r) => (
                                 <option key={r.id} value={r.id}>
-                                  {r.kind}: {r.title}
+                                  {r.kind}: {workItemLabel(r.displayId, r.title)}
                                 </option>
                               ))}
                             </select>
@@ -399,7 +410,7 @@ export default async function ProjectBacklogPage({
               <option value="">None</option>
               {parentTasks.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.title}
+                  {workItemLabel(t.displayId, t.title)}
                 </option>
               ))}
             </select>
@@ -436,7 +447,7 @@ export default async function ProjectBacklogPage({
               <option value="">None</option>
               {requirements.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.kind}: {r.title}
+                  {r.kind}: {workItemLabel(r.displayId, r.title)}
                 </option>
               ))}
             </select>

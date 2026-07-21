@@ -9,6 +9,10 @@ COPY prisma ./prisma
 COPY prisma.config.ts ./
 # prisma generate needs a URL present in prisma.config.ts (not used for a real connection)
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
+ENV NPM_CONFIG_FETCH_RETRIES=5
+ENV NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
+ENV NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
+ENV NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 RUN npm ci
 
 FROM node:20-bookworm-slim AS builder
@@ -34,6 +38,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/src/generated ./src/generated
+COPY --from=builder /app/src/lib ./src/lib
 COPY --from=builder /app/next.config.ts ./next.config.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 EXPOSE 3000
 CMD ["npm", "run", "start"]
