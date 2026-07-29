@@ -37,10 +37,12 @@ export type FeatureKey =
   | "workboard"
   | "quality"
   | "backlog"
+  | "teams"
   | "edit_delivery"
   | "manage_users"
   | "run_agent"
-  | "edit_settings";
+  | "edit_settings"
+  | "manage_teams";
 
 export type FeatureDef = {
   key: FeatureKey;
@@ -97,6 +99,13 @@ export const FEATURE_CATALOG: FeatureDef[] = [
     href: "/dashboard/gts-report",
   },
   { key: "agent", label: "AI agent", description: "Run status chase / jobs", kind: "menu", href: "/dashboard/agent" },
+  {
+    key: "teams",
+    label: "MS Teams",
+    description: "Teams bot: linked people, channels, activity",
+    kind: "menu",
+    href: "/dashboard/teams",
+  },
   { key: "settings", label: "Settings", description: "Company window settings", kind: "menu", href: "/dashboard/settings" },
   {
     key: "edit_delivery",
@@ -120,6 +129,12 @@ export const FEATURE_CATALOG: FeatureDef[] = [
     key: "edit_settings",
     label: "Edit settings",
     description: "Change company configuration",
+    kind: "action",
+  },
+  {
+    key: "manage_teams",
+    label: "Manage MS Teams",
+    description: "Enable the Teams bot, link people, connect channels",
     kind: "action",
   },
 ];
@@ -148,18 +163,22 @@ export const DEFAULT_FEATURE_MATRIX: Record<Role, FeatureKey[]> = {
     "users",
     "permissions",
     "agent",
+    "teams",
     "settings",
     "manage_users",
     "run_agent",
     "edit_settings",
+    "manage_teams",
   ],
   SVP: [
     ...almostAllMenus,
     "users",
     "permissions",
     "agent",
+    "teams",
     "manage_users",
     "run_agent",
+    "manage_teams",
   ],
   VP: [...almostAllMenus],
   AVP: [...almostAllMenus],

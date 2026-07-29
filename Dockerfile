@@ -37,6 +37,8 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+# Needed by the Railway cron service (npm run cron:trigger)
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/src/lib ./src/lib
 COPY --from=builder /app/next.config.ts ./next.config.ts

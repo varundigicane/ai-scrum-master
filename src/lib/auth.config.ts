@@ -42,6 +42,7 @@ export const authConfig = {
         pathname.startsWith("/status") ||
         pathname.startsWith("/api/status") ||
         pathname.startsWith("/api/cron") ||
+        pathname.startsWith("/api/teams") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/health") ||
         pathname === "/login"

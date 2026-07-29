@@ -34,6 +34,17 @@ services:
       CRON_SECRET: local-cron-secret
       EMAIL_FROM: "AI Scrum Master <noreply@localhost>"
       PGSSLMODE: disable
+      # MS Teams agent: optional locally. The bot only works when Azure can reach
+      # /api/teams/messages, so pair these with a dev tunnel (see docs/TEAMS_INTEGRATION.md).
+      MICROSOFT_APP_ID: ${MICROSOFT_APP_ID:-}
+      MICROSOFT_APP_PASSWORD: ${MICROSOFT_APP_PASSWORD:-}
+      MICROSOFT_APP_TYPE: ${MICROSOFT_APP_TYPE:-MultiTenant}
+      MICROSOFT_APP_TENANT_ID: ${MICROSOFT_APP_TENANT_ID:-}
+      TEAMS_APP_EXTERNAL_ID: ${TEAMS_APP_EXTERNAL_ID:-}
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      AI_PARSE_ENABLED: ${AI_PARSE_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy

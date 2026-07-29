@@ -9,7 +9,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 /** Bump when models are added so HMR does not keep a stale PrismaClient singleton. */
-const PRISMA_SCHEMA_VERSION = "work-item-display-id-v1";
+const PRISMA_SCHEMA_VERSION = "teams-integration-v1";
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -47,12 +47,14 @@ function isClientCurrent(client: PrismaClient | undefined): client is PrismaClie
     roleFeature?: { findMany?: unknown };
     reviewSheet?: { findMany?: unknown };
     gtsMonthlyReport?: { findUnique?: unknown };
+    teamsIdentity?: { findUnique?: unknown };
   };
   return (
     typeof c.billingMonthOverride?.findUnique === "function" &&
     typeof c.roleFeature?.findMany === "function" &&
     typeof c.reviewSheet?.findMany === "function" &&
-    typeof c.gtsMonthlyReport?.findUnique === "function"
+    typeof c.gtsMonthlyReport?.findUnique === "function" &&
+    typeof c.teamsIdentity?.findUnique === "function"
   );
 }
 

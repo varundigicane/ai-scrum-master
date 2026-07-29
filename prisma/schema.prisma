@@ -615,3 +615,107 @@ model GtsMonthlyLine {
   @@index([reportId])
   @@index([projectId])
 }
+
+// ---------------------------------------------------------------------------
+// Microsoft Teams layer.
+//
+// These models are intentionally standalone: companyId / resourceId / projectId
+// are plain scalars with no Prisma relation fields, so no existing model changes
+// (not even a back-relation line). Orphan cleanup lives in the Teams admin actions.
+// ---------------------------------------------------------------------------
+
+/// Per-company Teams behaviour. Bot credentials stay in env, not here.
+model TeamsConfig {
+  id                    String   @id @default(cuid())
+  companyId             String   @unique
+  enabled               Boolean  @default(false)
+  /// Azure AD tenant that Teams activities must come from
+  tenantId              String?
+  /// Send the daily status card as a DM when a status window opens
+  chaseEnabled          Boolean  @default(true)
+  /// Nudge still-pending resources this many minutes before the window closes
+  reminderMinutesBefore Int      @default(30)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+/// Mapping between a Teams user and a Resource/User. Authorization anchor for every bot write.
+model TeamsIdentity {
+  id              String    @id @default(cuid())
+  companyId       String
+  resourceId      String?   @unique
+  userId          String?   @unique
+  aadObjectId     String
+  tenantId        String
+  /// User principal name / email as reported by Teams
+  upn             String?
+  displayName     String?
+  /// 1:1 chat conversation id
+  conversationId  String?
+  serviceUrl      String?
+  /// JSON ConversationReference used for proactive messages
+  conversationRef String?
+  installedAt     DateTime?
+  optedOut        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([companyId, aadObjectId])
+  @@index([companyId])
+}
+
+/// A team/channel/group chat that receives relayed notifications.
+model TeamsChannelLink {
+  id              String   @id @default(cuid())
+  companyId       String
+  /// null = company-wide, otherwise scoped to one project
+  projectId       String?
+  /// team | channel | groupChat
+  scope           String   @default("channel")
+  teamId          String?
+  channelId       String?
+  conversationId  String
+  serviceUrl      String
+  conversationRef String
+  name            String?
+  /// Comma-separated notification types, e.g. status_missed,status_blocker,weekly_project
+  notifyTypes     String   @default("status_missed,status_blocker,deadline_overdue,weekly_project,weekly_company")
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, conversationId])
+  @@index([companyId])
+  @@index([projectId])
+}
+
+/// Idempotency log for Teams sends. Separate from NotificationLog so the email path is untouched.
+model TeamsMessageLog {
+  id             String   @id @default(cuid())
+  companyId      String
+  type           String
+  dedupeKey      String
+  target         String
+  payloadSummary String?
+  sentAt         DateTime @default(now())
+
+  @@unique([companyId, dedupeKey])
+  @@index([companyId, type])
+}
+
+/// Audit of bot commands, especially LLM parses.
+model TeamsInteraction {
+  id              String   @id @default(cuid())
+  companyId       String
+  teamsIdentityId String?
+  activityId      String?
+  command         String
+  inputText       String?
+  parsedJson      String?
+  /// ok | rejected | error
+  outcome         String
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+
+  @@index([companyId, createdAt])
+}

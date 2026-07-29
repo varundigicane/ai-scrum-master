@@ -10,6 +10,7 @@ Standalone multi-tenant delivery platform that replaces manual Scrum Master stat
 - Weekly resource-wise and project-wise packs for PMs and higher management
 - SDLC: requirements, test cases, defects, RCA/review sheets, leaves
 - Company / account / project / resource dashboards
+- Optional **MS Teams agent**: submit status from Teams (Adaptive Card or plain language) and relay blockers, misses, deadlines and weekly packs to channels
 
 ## Documentation
 
@@ -20,6 +21,7 @@ Standalone multi-tenant delivery platform that replaces manual Scrum Master stat
 | Deployment & NFRs | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
 | **Railway deploy** | [docs/RAILWAY.md](docs/RAILWAY.md) |
 | **Local Docker Desktop** | [docs/DOCKER_LOCAL.md](docs/DOCKER_LOCAL.md) |
+| **MS Teams agent** | [docs/TEAMS_INTEGRATION.md](docs/TEAMS_INTEGRATION.md) |
 | Functional Usage Guide | [docs/FUNCTIONAL_USAGE_GUIDE.md](docs/FUNCTIONAL_USAGE_GUIDE.md) |
 
 ## Quick start (Docker Desktop — full stack)
@@ -77,6 +79,24 @@ curl -X POST http://localhost:3000/api/cron \
 ```
 
 Jobs: `open-status-window`, `close-status-window`, `deadline-sweep`, `weekly-reports`, `run-all-daily`
+
+## MS Teams agent (optional)
+
+Additive layer — the email chase and web magic-link form are unchanged. It has its own
+endpoint and its own schedule:
+
+```bash
+curl -X POST http://localhost:3000/api/teams/cron \
+  -H "Authorization: Bearer dev-cron-secret" \
+  -H "Content-Type: application/json" \
+  -d "{\"job\":\"teams-all\"}"
+```
+
+Jobs: `teams-chase`, `teams-reminder`, `teams-relay`, `teams-missed`, `teams-deadlines`, `teams-weekly`, `teams-all`
+
+Setup (getting a tenant, registering the bot without Azure, manifest, linking, channels) is in
+**[docs/TEAMS_INTEGRATION.md](docs/TEAMS_INTEGRATION.md)**.
+Verify the data paths without Teams via `npm run teams:smoke`.
 
 ## Config
 
