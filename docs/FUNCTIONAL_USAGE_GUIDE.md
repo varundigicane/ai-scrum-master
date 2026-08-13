@@ -1,5 +1,7 @@
 # AI Scrum Master — Functional Usage Guide
 
+> **Superseded:** Use the full **[End User Guide](./END_USER_GUIDE.md)** or Microsoft Word file **[AI_Scrum_Master_End_User_Guide.docx](./AI_Scrum_Master_End_User_Guide.docx)** for current roles, screens, and workflows. This file is kept for historical reference only.
+
 **Product:** AI Scrum Master  
 **Audience:** Delivery leadership, Project Managers, Account Managers, Resources, Admins  
 **Version:** 0.1.0 (MVP)
