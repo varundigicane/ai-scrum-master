@@ -56,7 +56,9 @@ Open `mobile/ios` in Xcode on a Mac to archive. This Windows environment produce
 - Email/password login via `/api/mobile/login` (does not change web NextAuth cookies)
 - Role-based drawer menus from `/api/mobile/me`
 - **Overview** KPIs and **Projects**
-- **Meeting Notes** — Quill rich text, detail pipeline (summary → proposal → FRs → push backlog), schedule with date/hour/minute/timezone dropdowns and Meet/Teams auto-create or paste
+- **Meeting Notes** — rich notes editor (format toolbar), detail pipeline (summary → proposal → FRs → push backlog), schedule with date/hour/minute/timezone dropdowns and Meet/Teams auto-create or paste
+- **Settings** — company Mail, MS Teams, AI, delivery, and meetings panels (same as web; secrets blank=keep)
+- **All menus** — drawer lists live company data (accounts, resources, status, etc.); full editors remain on web where needed
 - **Billing** — month totals by account/project/resource + working-days override
 - **GTS Report** — generate/refresh month, edit header, view lines
 - **AI Agent** — list jobs and Run now (when permitted)

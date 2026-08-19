@@ -15,8 +15,8 @@ dependencies:
   http: ^1.2.2
   shared_preferences: ^2.3.3
   intl: ^0.20.2
-  flutter_quill: ^11.4.1
   url_launcher: ^6.3.1
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:

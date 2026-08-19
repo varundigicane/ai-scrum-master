@@ -1,5 +1,5 @@
 import { SignJWT, importPKCS8 } from "jose";
-import { teamsEnv } from "@/lib/teams/config";
+import { resolveMeetingProviderConfig } from "@/lib/company-config";
 
 export type MeetingProvidersStatus = {
   google: boolean;
@@ -14,43 +14,20 @@ export type ProvisionResult = {
   warnings: string[];
 };
 
-function googleConfigured(): boolean {
-  return Boolean(
-    process.env.GOOGLE_CLIENT_EMAIL?.trim() &&
-      process.env.GOOGLE_PRIVATE_KEY?.trim() &&
-      process.env.GOOGLE_CALENDAR_ID?.trim(),
-  );
+export async function getMeetingProvidersStatus(companyId: string): Promise<MeetingProvidersStatus> {
+  const cfg = await resolveMeetingProviderConfig(companyId);
+  return { google: cfg.google, teams: cfg.teams };
 }
 
-function teamsMeetingConfigured(): boolean {
-  const env = teamsEnv();
-  return Boolean(env?.graphTenantId && process.env.GRAPH_MEETING_USER_ID?.trim());
-}
-
-export function getMeetingProvidersStatus(): MeetingProvidersStatus {
-  return {
-    google: googleConfigured(),
-    teams: teamsMeetingConfigured(),
-  };
-}
-
-function normalizePrivateKey(raw: string) {
-  return raw.replace(/\\n/g, "\n").trim();
-}
-
-async function googleAccessToken(): Promise<string | null> {
-  const email = process.env.GOOGLE_CLIENT_EMAIL?.trim();
-  const key = process.env.GOOGLE_PRIVATE_KEY ? normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY) : "";
-  if (!email || !key) return null;
-
+async function googleAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
   try {
-    const cryptoKey = await importPKCS8(key, "RS256");
+    const cryptoKey = await importPKCS8(privateKey, "RS256");
     const now = Math.floor(Date.now() / 1000);
     const jwt = await new SignJWT({
       scope: "https://www.googleapis.com/auth/calendar",
     })
       .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-      .setIssuer(email)
+      .setIssuer(clientEmail)
       .setAudience("https://oauth2.googleapis.com/token")
       .setIssuedAt(now)
       .setExpirationTime(now + 3600)
@@ -72,23 +49,27 @@ async function googleAccessToken(): Promise<string | null> {
   }
 }
 
-async function createGoogleMeetEvent(input: {
-  title: string;
-  startsAt: Date;
-  endsAt: Date;
-  timezone: string;
-  attendees: string;
-}): Promise<{ meetUrl?: string; eventId?: string; warning?: string }> {
-  if (!googleConfigured()) {
-    return { warning: "Google Meet is not configured on the server." };
+async function createGoogleMeetEvent(
+  companyId: string,
+  input: {
+    title: string;
+    startsAt: Date;
+    endsAt: Date;
+    timezone: string;
+    attendees: string;
+  },
+): Promise<{ meetUrl?: string; eventId?: string; warning?: string }> {
+  const cfg = await resolveMeetingProviderConfig(companyId);
+  if (!cfg.google || !cfg.googleClientEmail || !cfg.googlePrivateKey || !cfg.googleCalendarId) {
+    return { warning: "Google Meet is not configured for this company." };
   }
 
-  const token = await googleAccessToken();
+  const token = await googleAccessToken(cfg.googleClientEmail, cfg.googlePrivateKey);
   if (!token) {
     return { warning: "Could not authenticate with Google Calendar. Meeting was still saved." };
   }
 
-  const calendarId = encodeURIComponent(process.env.GOOGLE_CALENDAR_ID!.trim());
+  const calendarId = encodeURIComponent(cfg.googleCalendarId);
   const attendeeEmails = input.attendees
     .split(/[,;\n]+/)
     .map((s) => s.trim())
@@ -138,18 +119,21 @@ async function createGoogleMeetEvent(input: {
   }
 }
 
-async function graphAppToken(): Promise<string | null> {
-  const env = teamsEnv();
-  if (!env?.graphTenantId) return null;
+async function graphAppToken(teams: {
+  appId: string;
+  appPassword: string;
+  graphTenantId?: string;
+}): Promise<string | null> {
+  if (!teams.graphTenantId) return null;
   try {
     const res = await fetch(
-      `https://login.microsoftonline.com/${env.graphTenantId}/oauth2/v2.0/token`,
+      `https://login.microsoftonline.com/${teams.graphTenantId}/oauth2/v2.0/token`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          client_id: env.appId,
-          client_secret: env.appPassword,
+          client_id: teams.appId,
+          client_secret: teams.appPassword,
           scope: "https://graph.microsoft.com/.default",
           grant_type: "client_credentials",
         }),
@@ -163,34 +147,36 @@ async function graphAppToken(): Promise<string | null> {
   }
 }
 
-async function createTeamsOnlineMeeting(input: {
-  title: string;
-  startsAt: Date;
-  endsAt: Date;
-}): Promise<{ joinUrl?: string; meetingId?: string; warning?: string }> {
-  if (!teamsMeetingConfigured()) {
-    return { warning: "Teams meetings are not configured on the server." };
+async function createTeamsOnlineMeeting(
+  companyId: string,
+  input: { title: string; startsAt: Date; endsAt: Date },
+): Promise<{ joinUrl?: string; meetingId?: string; warning?: string }> {
+  const cfg = await resolveMeetingProviderConfig(companyId);
+  if (!cfg.teams || !cfg.teamsEnv || !cfg.graphMeetingUserId) {
+    return { warning: "Teams meetings are not configured for this company." };
   }
 
-  const token = await graphAppToken();
+  const token = await graphAppToken(cfg.teamsEnv);
   if (!token) {
     return { warning: "Could not authenticate with Microsoft Graph. Meeting was still saved." };
   }
 
-  const userId = process.env.GRAPH_MEETING_USER_ID!.trim();
   try {
-    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/onlineMeetings`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(cfg.graphMeetingUserId)}/onlineMeetings`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          subject: input.title,
+          startDateTime: input.startsAt.toISOString(),
+          endDateTime: input.endsAt.toISOString(),
+        }),
       },
-      body: JSON.stringify({
-        subject: input.title,
-        startDateTime: input.startsAt.toISOString(),
-        endDateTime: input.endsAt.toISOString(),
-      }),
-    });
+    );
 
     if (!res.ok) {
       return {
@@ -208,6 +194,7 @@ async function createTeamsOnlineMeeting(input: {
 
 /** Soft-fail: never throws; returns warnings when providers fail or are unset. */
 export async function provisionMeetingLinks(input: {
+  companyId: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -225,14 +212,14 @@ export async function provisionMeetingLinks(input: {
   let teamsMeetingId: string | undefined;
 
   if (input.createGoogleMeet && !googleMeetUrl) {
-    const g = await createGoogleMeetEvent(input);
+    const g = await createGoogleMeetEvent(input.companyId, input);
     if (g.warning) warnings.push(g.warning);
     if (g.meetUrl) googleMeetUrl = g.meetUrl;
     if (g.eventId) googleEventId = g.eventId;
   }
 
   if (input.createTeamsMeeting && !teamsJoinUrl) {
-    const t = await createTeamsOnlineMeeting(input);
+    const t = await createTeamsOnlineMeeting(input.companyId, input);
     if (t.warning) warnings.push(t.warning);
     if (t.joinUrl) teamsJoinUrl = t.joinUrl;
     if (t.meetingId) teamsMeetingId = t.meetingId;

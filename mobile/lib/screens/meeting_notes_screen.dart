@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 
 import '../api.dart';
-import '../widgets/quill_notes_field.dart';
+import '../widgets/rich_notes_field.dart';
+import '../widgets/speech_mic_button.dart';
 import 'meeting_note_detail_screen.dart';
 
 class MeetingNotesScreen extends StatefulWidget {
@@ -30,7 +30,7 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
   Future<void> createNote() async {
     final titleCtrl = TextEditingController();
     final attendeesCtrl = TextEditingController();
-    final notesCtrl = QuillController.basic();
+    final notesCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -42,9 +42,16 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+                const SizedBox(height: 12),
                 TextField(controller: attendeesCtrl, decoration: const InputDecoration(labelText: 'Attendees')),
-                const SizedBox(height: 8),
-                QuillNotesField(controller: notesCtrl, minHeight: 120),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Notes', style: TextStyle(fontWeight: FontWeight.w600))),
+                    SpeechMicButton(onText: (t) => appendPlainToNotes(notesCtrl, t)),
+                  ],
+                ),
+                RichNotesField(controller: notesCtrl, minHeight: 120),
               ],
             ),
           ),
@@ -59,7 +66,7 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
     try {
       final created = await widget.api.createMeetingNote(
         title: titleCtrl.text.trim(),
-        rawNotes: quillToHtmlish(notesCtrl),
+        rawNotes: editableToHtmlish(notesCtrl.text),
         attendees: attendeesCtrl.text.trim(),
       );
       await refresh();

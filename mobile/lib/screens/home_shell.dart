@@ -3,10 +3,12 @@ import '../api.dart';
 import 'meeting_notes_screen.dart';
 import 'overview_screen.dart';
 import 'projects_screen.dart';
-import 'placeholder_screen.dart';
 import 'billing_screen.dart';
 import 'gts_screen.dart';
 import 'agent_screen.dart';
+import 'settings_screen.dart';
+import 'menu_data_screen.dart';
+import 'placeholder_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.api, required this.onLogout});
@@ -24,6 +26,20 @@ class _HomeShellState extends State<HomeShell> {
   String? error;
   bool loading = true;
 
+  static const _listMenus = {
+    'accounts',
+    'resources',
+    'users',
+    'permissions',
+    'status',
+    'leaves',
+    'reports',
+    'backlog',
+    'workboard',
+    'quality',
+    'teams',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -37,8 +53,10 @@ class _HomeShellState extends State<HomeShell> {
     });
     try {
       final data = await widget.api.me();
+      if (!mounted) return;
       setState(() => me = data);
     } catch (e) {
+      if (!mounted) return;
       setState(() => error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => loading = false);
@@ -47,18 +65,32 @@ class _HomeShellState extends State<HomeShell> {
 
   List<Map<String, dynamic>> get menus {
     final raw = me?['menus'];
-    if (raw is List) {
-      return raw.cast<Map<String, dynamic>>();
+    if (raw is! List) {
+      return [
+        {'key': 'overview', 'label': 'Overview'},
+        {'key': 'projects', 'label': 'Projects'},
+        {'key': 'meeting_notes', 'label': 'Meeting Notes'},
+      ];
     }
-    return [
-      {'key': 'overview', 'label': 'Overview'},
-      {'key': 'projects', 'label': 'Projects'},
-      {'key': 'meeting_notes', 'label': 'Meeting Notes'},
-    ];
+    final out = <Map<String, dynamic>>[];
+    for (final item in raw) {
+      if (item is Map) {
+        out.add(Map<String, dynamic>.from(item));
+      }
+    }
+    if (out.isEmpty) {
+      return [
+        {'key': 'overview', 'label': 'Overview'},
+        {'key': 'projects', 'label': 'Projects'},
+        {'key': 'meeting_notes', 'label': 'Meeting Notes'},
+      ];
+    }
+    return out;
   }
 
   Widget get body {
-    switch (selectedKey) {
+    final key = selectedKey;
+    switch (key) {
       case 'projects':
         return ProjectsScreen(api: widget.api);
       case 'meeting_notes':
@@ -69,17 +101,29 @@ class _HomeShellState extends State<HomeShell> {
         return GtsScreen(api: widget.api);
       case 'agent':
         return AgentScreen(api: widget.api);
+      case 'settings':
+        return SettingsScreen(api: widget.api);
       case 'overview':
         return OverviewScreen(me: me, onRefresh: _load);
       default:
+        if (key != null && _listMenus.contains(key)) {
+          final label = menus.firstWhere(
+            (m) => m['key'] == key,
+            orElse: () => {'label': key},
+          )['label'];
+          return MenuDataScreen(
+            api: widget.api,
+            menuKey: key,
+            title: label?.toString() ?? key,
+          );
+        }
         final label = menus.firstWhere(
           (m) => m['key'] == selectedKey,
           orElse: () => {'label': selectedKey ?? 'Screen'},
         )['label'];
         return PlaceholderScreen(
           title: label?.toString() ?? 'Screen',
-          message:
-              'Connected via mobile API. Open this area on web for full editors, or extend the mobile route for this menu.',
+          message: 'This menu is not available on mobile yet.',
         );
     }
   }

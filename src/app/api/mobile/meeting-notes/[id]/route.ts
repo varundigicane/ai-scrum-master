@@ -91,6 +91,7 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
         title: note.title,
         attendees: note.attendees,
         rawNotes: note.rawNotes,
+        companyId: payload.companyId,
       });
       await prisma.meetingSummary.upsert({
         where: { meetingNoteId: id },
@@ -121,6 +122,7 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
         title: note.title,
         summaryMd: note.summary.summaryMd,
         rawNotes: note.rawNotes,
+        companyId: payload.companyId,
       });
       await prisma.softwareProposal.upsert({
         where: { meetingNoteId: id },
@@ -160,6 +162,7 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
       const items = await generateFunctionalRequirementsAi({
         proposalTitle: note.proposal.title,
         bodyHtml: note.proposal.bodyHtml,
+        companyId: payload.companyId,
       });
       await prisma.$transaction([
         prisma.proposalRequirement.deleteMany({ where: { proposalId: note.proposal.id } }),
@@ -275,6 +278,7 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
       const attendees = String(body.attendees ?? note.attendees ?? "");
       const room = String(body.room ?? "").trim();
       const provisioned = await provisionMeetingLinks({
+        companyId: payload.companyId,
         title,
         startsAt: start,
         endsAt: end,

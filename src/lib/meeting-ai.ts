@@ -4,10 +4,21 @@ const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 type ChatMessage = { role: "system" | "user"; content: string };
 
-async function chatJson(messages: ChatMessage[], maxTokens = 2000): Promise<unknown> {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function chatJson(
+  messages: ChatMessage[],
+  maxTokens = 2000,
+  companyId?: string,
+): Promise<unknown> {
+  let apiKey = process.env.OPENAI_API_KEY;
+  let model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+  if (companyId) {
+    const { resolveOpenAi } = await import("@/lib/company-config");
+    const resolved = await resolveOpenAi(companyId);
+    apiKey = resolved.apiKey ?? apiKey;
+    model = resolved.model;
+  }
   if (!apiKey) {
-    throw new Error("AI features are unavailable. Configure OPENAI_API_KEY and try again.");
+    throw new Error("AI features are unavailable. Configure OPENAI_API_KEY in Settings and try again.");
   }
 
   const controller = new AbortController();
@@ -21,7 +32,7 @@ async function chatJson(messages: ChatMessage[], maxTokens = 2000): Promise<unkn
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+        model,
         temperature: 0.2,
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
@@ -61,18 +72,23 @@ export async function generateMeetingSummaryAi(input: {
   title: string;
   attendees: string;
   rawNotes: string;
+  companyId?: string;
 }): Promise<MeetingSummaryResult> {
-  const raw = (await chatJson([
-    {
-      role: "system",
-      content:
-        "You summarize business meeting notes for software delivery teams. Output JSON: {\"summaryMd\":string,\"decisions\":string[],\"actionItems\":string[]}. summaryMd is markdown with sections Overview, Decisions, Risks, Next steps.",
-    },
-    {
-      role: "user",
-      content: `Title: ${input.title}\nAttendees: ${input.attendees}\nNotes:\n${input.rawNotes}`,
-    },
-  ])) as Partial<MeetingSummaryResult>;
+  const raw = (await chatJson(
+    [
+      {
+        role: "system",
+        content:
+          "You summarize business meeting notes for software delivery teams. Output JSON: {\"summaryMd\":string,\"decisions\":string[],\"actionItems\":string[]}. summaryMd is markdown with sections Overview, Decisions, Risks, Next steps.",
+      },
+      {
+        role: "user",
+        content: `Title: ${input.title}\nAttendees: ${input.attendees}\nNotes:\n${input.rawNotes}`,
+      },
+    ],
+    2000,
+    input.companyId,
+  )) as Partial<MeetingSummaryResult>;
 
   return {
     summaryMd: String(raw.summaryMd ?? "").trim() || "No summary generated.",
@@ -87,6 +103,7 @@ export async function generateProposalAi(input: {
   title: string;
   summaryMd: string;
   rawNotes: string;
+  companyId?: string;
 }): Promise<ProposalAiResult> {
   const raw = (await chatJson(
     [
@@ -101,6 +118,7 @@ export async function generateProposalAi(input: {
       },
     ],
     3000,
+    input.companyId,
   )) as Partial<ProposalAiResult>;
 
   return {
@@ -120,6 +138,7 @@ export type FrAiItem = {
 export async function generateFunctionalRequirementsAi(input: {
   proposalTitle: string;
   bodyHtml: string;
+  companyId?: string;
 }): Promise<FrAiItem[]> {
   const raw = (await chatJson(
     [
@@ -134,6 +153,7 @@ export async function generateFunctionalRequirementsAi(input: {
       },
     ],
     3500,
+    input.companyId,
   )) as { items?: FrAiItem[] };
 
   const items = Array.isArray(raw.items) ? raw.items : [];

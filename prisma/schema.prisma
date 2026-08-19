@@ -111,6 +111,39 @@ model Company {
   weeklyReportDay      Int      @default(1)
   weeklyReportTime     String   @default("09:00")
   deadlineWarnDays     String   @default("3,1")
+
+  /// gmail | smtp | empty = auto (prefer Gmail when creds exist)
+  mailProvider         String?
+  emailFrom            String?
+  gmailUserEmail       String?
+  gmailClientEmail     String?
+  gmailPrivateKey      String?  @db.Text
+  gmailClientId        String?
+  gmailClientSecret    String?
+  gmailRefreshToken    String?  @db.Text
+  smtpHost             String?
+  smtpPort             Int?
+  smtpUser             String?
+  smtpPass             String?
+
+  openaiApiKey         String?
+  openaiModel          String?
+  aiParseEnabled       Boolean?
+
+  microsoftAppId       String?
+  microsoftAppPassword String?
+  microsoftAppType     String?
+  microsoftAppTenantId String?
+  teamsAppExternalId   String?
+  graphTenantId        String?
+
+  meetGoogleEnabled    Boolean  @default(true)
+  meetTeamsEnabled     Boolean  @default(true)
+  googleClientEmail    String?
+  googlePrivateKey     String?  @db.Text
+  googleCalendarId     String?
+  graphMeetingUserId   String?
+
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasFeature } from "@/lib/permissions";
-import { isAiParseEnabled, isTeamsConfigured } from "@/lib/teams/config";
+import { isAiParseEnabled } from "@/lib/teams/config";
 import { getTeamsConfig } from "@/lib/teams/link";
+import { resolveTeamsEnv, resolveOpenAi } from "@/lib/company-config";
 import {
   deleteChannelLink,
   deleteIdentity,
@@ -13,7 +14,6 @@ import {
   sendTeamsTestMessage,
   setIdentityMuted,
   updateChannelLink,
-  updateTeamsConfig,
 } from "./actions";
 
 const NOTIFY_TYPES = [
@@ -37,6 +37,8 @@ export default async function TeamsPage() {
   const canManage = await hasFeature(companyId, session.user.role, "manage_teams");
 
   const config = await getTeamsConfig(companyId);
+  const teamsEnv = await resolveTeamsEnv(companyId);
+  const ai = await resolveOpenAi(companyId);
   const [identities, channels, resources, projects, interactions, recentSends] = await Promise.all([
     prisma.teamsIdentity.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
     prisma.teamsChannelLink.findMany({ where: { companyId }, orderBy: { createdAt: "desc" } }),
@@ -75,77 +77,49 @@ export default async function TeamsPage() {
         <h2 className="text-2xl font-semibold">MS Teams</h2>
         <p className="text-sm text-[var(--muted)]">
           The bot collects daily status in Teams and relays blockers, misses, deadlines and weekly
-          packs. Email keeps working exactly as before.
+          packs. Email keeps working exactly as before. Configure bot credentials and agent options
+          in{" "}
+          <a className="text-sky-600 hover:underline" href="/dashboard/settings">
+            Settings → MS Teams
+          </a>
+          .
         </p>
       </div>
 
       <div className="panel p-4 space-y-2 text-sm">
-        <p className="font-medium text-white">Environment</p>
+        <p className="font-medium">Status</p>
         <p className="text-[var(--muted)]">
-          Bot credentials:{" "}
-          {isTeamsConfigured() ? (
-            <span className="text-emerald-300">configured</span>
+          Agent:{" "}
+          {config.enabled ? (
+            <span className="text-emerald-600">enabled</span>
           ) : (
-            <span className="text-amber-300">
-              missing — set MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD
-            </span>
+            <span className="text-amber-700">disabled — turn on in Settings</span>
+          )}
+          {" · "}
+          Bot credentials:{" "}
+          {teamsEnv ? (
+            <span className="text-emerald-600">configured</span>
+          ) : (
+            <span className="text-amber-700">missing — set in Settings</span>
           )}
         </p>
         <p className="text-[var(--muted)]">
           Free-text AI parsing:{" "}
-          {isAiParseEnabled() ? (
-            <span className="text-emerald-300">on</span>
+          {ai.aiParseEnabled || isAiParseEnabled() ? (
+            <span className="text-emerald-600">on</span>
           ) : (
-            <span className="text-[var(--muted)]">off — set OPENAI_API_KEY and AI_PARSE_ENABLED=true</span>
+            <span>off — configure AI in Settings</span>
           )}
         </p>
         <p className="text-[var(--muted)]">
-          Messaging endpoint: <code className="text-teal-300">/api/teams/messages</code> · Relay:{" "}
-          <code className="text-teal-300">POST /api/teams/cron</code> with{" "}
-          <code className="text-teal-300">{`{"job":"teams-all"}`}</code>
+          Messaging endpoint: <code className="text-teal-700">/api/teams/messages</code> · Relay:{" "}
+          <code className="text-teal-700">POST /api/teams/cron</code>
         </p>
       </div>
 
-      {canManage ? (
-        <form action={updateTeamsConfig} className="panel p-4 space-y-3 max-w-xl">
-          <p className="font-medium">Company settings</p>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="enabled" defaultChecked={config.enabled} />
-            Enable the Teams agent for this company
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="chaseEnabled" defaultChecked={config.chaseEnabled} />
-            Send the daily status card when a window opens
-          </label>
-          <div>
-            <label className="label">Azure AD tenant id</label>
-            <input
-              className="input"
-              name="tenantId"
-              defaultValue={config.tenantId ?? ""}
-              placeholder="Left blank, the first tenant that messages the bot is adopted"
-            />
-          </div>
-          <div>
-            <label className="label">Remind this many minutes before the window closes</label>
-            <input
-              className="input"
-              type="number"
-              name="reminderMinutesBefore"
-              min={0}
-              max={240}
-              defaultValue={config.reminderMinutesBefore}
-            />
-          </div>
-          <div className="flex gap-2">
-            <button className="btn" type="submit">
-              Save
-            </button>
-          </div>
-        </form>
-      ) : (
+      {!canManage ? (
         <p className="text-sm text-[var(--muted)]">View only — your role cannot manage Teams.</p>
-      )}
+      ) : null}
 
       {canManage ? (
         <form action={runTeamsRelayNow} className="panel p-4 space-y-2">

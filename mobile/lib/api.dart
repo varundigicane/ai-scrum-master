@@ -131,6 +131,29 @@ class ApiClient {
     return _json(res, fallback: 'Could not load providers');
   }
 
+  Future<Map<String, dynamic>> settings() async {
+    final res = await _send(() => http.get(_u('/api/mobile/settings'), headers: _headers));
+    return _json(res, fallback: 'Could not load settings');
+  }
+
+  Future<Map<String, dynamic>> saveSettings(Map<String, dynamic> body) async {
+    final res = await _send(
+      () => http.patch(_u('/api/mobile/settings'), headers: _headers, body: jsonEncode(body)),
+    );
+    return _json(res, fallback: 'Could not save settings');
+  }
+
+  Future<Map<String, dynamic>> testEmail(String testTo) async {
+    final res = await _send(
+      () => http.patch(
+        _u('/api/mobile/settings'),
+        headers: _headers,
+        body: jsonEncode({'action': 'test-email', 'testTo': testTo}),
+      ),
+    );
+    return _json(res, fallback: 'Test email failed');
+  }
+
   Future<List<dynamic>> projects() async {
     final res = await _send(() => http.get(_u('/api/mobile/projects'), headers: _headers));
     final body = await _json(res, fallback: 'Could not load projects');
@@ -192,5 +215,12 @@ class ApiClient {
       () => http.post(_u('/api/mobile/agent'), headers: _headers, body: jsonEncode({'job': job})),
     );
     return _json(res, fallback: 'Agent job failed');
+  }
+
+  Future<Map<String, dynamic>> menuData(String key, {String? projectId}) async {
+    final query = <String, String>{'key': key};
+    if (projectId != null && projectId.isNotEmpty) query['projectId'] = projectId;
+    final res = await _send(() => http.get(_u('/api/mobile/menu-data', query), headers: _headers));
+    return _json(res, fallback: 'Could not load data');
   }
 }

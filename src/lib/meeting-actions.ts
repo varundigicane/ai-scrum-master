@@ -97,6 +97,7 @@ export async function generateMeetingSummaryAction(formData: FormData): Promise<
       title: note.title,
       attendees: note.attendees,
       rawNotes: note.rawNotes,
+      companyId: session.user.companyId,
     });
 
     await prisma.meetingSummary.upsert({
@@ -141,6 +142,7 @@ export async function generateProposalAction(formData: FormData): Promise<Action
       title: note.title,
       summaryMd: note.summary.summaryMd,
       rawNotes: note.rawNotes,
+      companyId: session.user.companyId,
     });
 
     await prisma.softwareProposal.upsert({
@@ -200,6 +202,7 @@ export async function generateFrsAction(formData: FormData): Promise<ActionResul
     const items = await generateFunctionalRequirementsAi({
       proposalTitle: proposal.title,
       bodyHtml: proposal.bodyHtml,
+      companyId: session.user.companyId,
     });
 
     await prisma.$transaction([
@@ -345,6 +348,7 @@ export async function createMeetingEvent(formData: FormData): Promise<ActionResu
       formData.get("createTeamsMeeting") === "on" || formData.get("createTeamsMeeting") === "true";
 
     const provisioned = await provisionMeetingLinks({
+      companyId: session.user.companyId,
       title,
       startsAt: start,
       endsAt: end,

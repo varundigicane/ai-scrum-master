@@ -46,7 +46,7 @@ export default async function MeetingNoteDetailPage({
     include: { account: true },
     orderBy: { name: "asc" },
   });
-  const providers = getMeetingProvidersStatus();
+  const providers = await getMeetingProvidersStatus(session.user.companyId);
 
   async function withRedirect(
     action: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>,

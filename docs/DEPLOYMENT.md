@@ -56,11 +56,14 @@ Copy `.env.example` to `.env` (or set in the platform secret store):
 | `SMTP_HOST` | Prod Yes | SMTP hostname |
 | `SMTP_PORT` | Prod Yes | Usually `587` |
 | `SMTP_USER` / `SMTP_PASS` | If required | SMTP auth |
-| `OPENAI_API_KEY` | No | Meeting AI + optional status parse (templates/errors if empty) |
-| `GOOGLE_CLIENT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` | No | Auto-create Google Meet on schedule (soft-fail if unset) |
-| `GRAPH_MEETING_USER_ID` (+ existing `MICROSOFT_APP_*` / `GRAPH_TENANT_ID`) | No | Auto-create Teams online meetings via Graph (needs OnlineMeetings.ReadWrite.All) |
+| `OPENAI_API_KEY` | No | Meeting AI + optional status parse (or set in company Settings) |
+| `GMAIL_USER_EMAIL` / `GMAIL_CLIENT_EMAIL` / `GMAIL_PRIVATE_KEY` | No | Gmail API send (preferred on Railway hobby); company Settings can override |
+| `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | No | Gmail OAuth alternative to service account |
+| `MAIL_PROVIDER` | No | `gmail` \| `smtp` \| empty (auto) |
+| `GOOGLE_CLIENT_EMAIL` / `GOOGLE_PRIVATE_KEY` / `GOOGLE_CALENDAR_ID` | No | Auto-create Google Meet (or Settings) |
+| `GRAPH_MEETING_USER_ID` (+ existing `MICROSOFT_APP_*` / `GRAPH_TENANT_ID`) | No | Auto-create Teams online meetings |
 
-**Never commit** production `.env` values.
+**Never commit** production `.env` values. Company Admins can also set operational vars in **Settings** (secrets stay blank-to-keep).
 
 ---
 

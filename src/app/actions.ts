@@ -667,15 +667,26 @@ export async function saveBillingMonthOverride(formData: FormData) {
 export async function updateCompanySettings(formData: FormData) {
   await assertFeature("edit_settings");
   const cid = await companyId();
-  await prisma.company.update({
-    where: { id: cid },
-    data: {
-      statusWindowStart: String(formData.get("statusWindowStart") ?? "17:00"),
-      statusWindowHours: Number(formData.get("statusWindowHours") ?? 2),
-      timezone: String(formData.get("timezone") ?? "Asia/Kolkata"),
-      weeklyReportTime: String(formData.get("weeklyReportTime") ?? "09:00"),
-      deadlineWarnDays: String(formData.get("deadlineWarnDays") ?? "3,1"),
-    },
+  const { applyCompanyAppSettings } = await import("@/lib/company-settings-apply");
+  await applyCompanyAppSettings(cid, formData);
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/teams");
+}
+
+export async function sendTestEmailSettings(formData: FormData) {
+  const session = await assertFeature("edit_settings");
+  const to = String(formData.get("testTo") ?? session.user.email ?? "").trim();
+  if (!to) throw new Error("Enter a recipient email for the test.");
+  const { sendEmail } = await import("@/lib/email");
+  await sendEmail({
+    companyId: session.user.companyId,
+    type: "settings_test",
+    dedupeKey: `settings-test-${session.user.companyId}-${Date.now()}`,
+    to: [to],
+    subject: "AI Scrum Master — test email",
+    html: "<p>This is a test message from company Settings (Gmail API / SMTP).</p>",
+    text: "This is a test message from company Settings (Gmail API / SMTP).",
+    skipDedupe: true,
   });
   revalidatePath("/dashboard/settings");
 }

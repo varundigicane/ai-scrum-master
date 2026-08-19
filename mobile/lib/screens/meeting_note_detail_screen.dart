@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
-import '../widgets/quill_notes_field.dart';
+import '../widgets/rich_notes_field.dart';
+import '../widgets/speech_mic_button.dart';
 
 class MeetingNoteDetailScreen extends StatefulWidget {
   const MeetingNoteDetailScreen({super.key, required this.api, required this.noteId});
@@ -23,17 +23,17 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
   bool loading = true;
   bool busy = false;
 
-  late QuillController notesController;
+  late TextEditingController notesController;
   late TextEditingController titleCtrl;
   late TextEditingController attendeesCtrl;
-  late QuillController proposalController;
+  late TextEditingController proposalController;
   late TextEditingController proposalTitleCtrl;
 
   @override
   void initState() {
     super.initState();
-    notesController = QuillController.basic();
-    proposalController = QuillController.basic();
+    notesController = TextEditingController();
+    proposalController = TextEditingController();
     titleCtrl = TextEditingController();
     attendeesCtrl = TextEditingController();
     proposalTitleCtrl = TextEditingController();
@@ -64,19 +64,18 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
         projs = await widget.api.projects();
       } catch (_) {}
 
-      notesController.dispose();
-      notesController = quillFromPlainOrHtml(n['rawNotes']?.toString());
+      if (!mounted) return;
+      notesController.text = plainOrHtmlToEditable(n['rawNotes']?.toString());
       titleCtrl.text = n['title']?.toString() ?? '';
       attendeesCtrl.text = n['attendees']?.toString() ?? '';
 
       final proposal = n['proposal'] as Map<String, dynamic>?;
-      proposalController.dispose();
       if (proposal != null) {
         proposalTitleCtrl.text = proposal['title']?.toString() ?? '';
-        proposalController = quillFromPlainOrHtml(proposal['bodyHtml']?.toString());
+        proposalController.text = plainOrHtmlToEditable(proposal['bodyHtml']?.toString());
       } else {
         proposalTitleCtrl.clear();
-        proposalController = QuillController.basic();
+        proposalController.clear();
       }
 
       setState(() {
@@ -85,6 +84,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
         projects = projs;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => loading = false);
@@ -116,7 +116,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
         widget.noteId,
         title: titleCtrl.text.trim(),
         attendees: attendeesCtrl.text.trim(),
-        rawNotes: quillToHtmlish(notesController),
+        rawNotes: editableToHtmlish(notesController.text),
       ),
     );
   }
@@ -246,7 +246,9 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                           : null,
                     ),
                     TextField(controller: meetUrl, decoration: const InputDecoration(labelText: 'Meet URL (optional)')),
+                    const SizedBox(height: 8),
                     TextField(controller: teamsUrl, decoration: const InputDecoration(labelText: 'Teams URL (optional)')),
+                    const SizedBox(height: 8),
                     TextField(controller: room, decoration: const InputDecoration(labelText: 'Room (optional)')),
                     const SizedBox(height: 12),
                     ElevatedButton(
@@ -370,10 +372,16 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
               ),
               const SizedBox(height: 12),
               TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+              const SizedBox(height: 12),
               TextField(controller: attendeesCtrl, decoration: const InputDecoration(labelText: 'Attendees')),
-              const SizedBox(height: 8),
-              const Text('Notes', style: TextStyle(fontWeight: FontWeight.w600)),
-              QuillNotesField(controller: notesController),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(child: Text('Notes', style: TextStyle(fontWeight: FontWeight.w600))),
+                  SpeechMicButton(onText: (t) => appendPlainToNotes(notesController, t)),
+                ],
+              ),
+              RichNotesField(controller: notesController),
               const SizedBox(height: 8),
               ElevatedButton(onPressed: busy ? null : _saveNotes, child: const Text('Save notes')),
               const Divider(height: 32),
@@ -413,14 +421,15 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                 const SizedBox(height: 16),
                 const Text('Proposal', style: TextStyle(fontWeight: FontWeight.w600)),
                 TextField(controller: proposalTitleCtrl, decoration: const InputDecoration(labelText: 'Proposal title')),
-                QuillNotesField(controller: proposalController, minHeight: 120),
+                const SizedBox(height: 8),
+                RichNotesField(controller: proposalController, minHeight: 120),
                 ElevatedButton(
                   onPressed: busy
                       ? null
                       : () => _run(
                             () => widget.api.meetingAction(widget.noteId, 'save-proposal', {
                               'title': proposalTitleCtrl.text.trim(),
-                              'bodyHtml': quillToHtmlish(proposalController),
+                              'bodyHtml': editableToHtmlish(proposalController.text),
                             }),
                           ),
                   child: const Text('Save proposal'),

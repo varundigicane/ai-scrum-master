@@ -294,15 +294,19 @@ Leads for Teams DMs align with project alert roles (PM, AVP, VP) when linked and
 
 ### 6.18 Settings
 
-| Setting | Meaning | Typical default |
-|---------|---------|-----------------|
-| Timezone | Company local timezone label | `Asia/Kolkata` |
-| Daily status start | When the window opens (`HH:mm`) | `17:00` |
-| Window length (hours) | Link validity from start | `2` |
-| Weekly report time | Preferred weekly pack time | `09:00` |
-| Deadline warn days | Days before deadline to alert (comma-separated) | `3,1` |
+Company Admin / CEO (with **Edit settings**) can configure company application variables from the UI (web and mobile). Host-only values (`DATABASE_URL`, auth secrets, etc.) stay on the server.
 
-Select **Save settings**. Requires **Edit settings**.
+| Panel | What you set |
+|---------|----------------|
+| Delivery window | Timezone, status start, window hours, weekly report time/day, deadline warn days |
+| Mail | Prefer **Gmail API** (Railway hobby); optional SMTP for local. From address, SA or OAuth, **Send test email** |
+| AI | OpenAI API key / model, AI parse toggle |
+| MS Teams bot | App id/password/tenant and Graph tenant |
+| Online meetings | Enable Meet/Teams auto-create + Google Calendar SA / Graph meeting user |
+
+Empty secret fields keep the current value. Env vars remain a fallback when company fields are empty.
+
+Select **Save all settings**. Requires **Edit settings**.
 
 ### 6.19 Magic-link daily status form
 
@@ -374,6 +378,7 @@ View history under **Weekly reports**. Defect density (MVP): defects ÷ closed r
 | Weekly (e.g. Monday) | Generate weekly packs | Cron / AI Agent |
 | Weekly review | Walk Overview RAG + Red projects | CEO / SVP / VP |
 | Monthly | Review Billing and GTS Report | Finance / PMs / leadership |
+| Anytime | Company Admin → Settings (mail/Gmail API, AI, Teams, Meet) | Company Admin / CEO |
 
 ---
 
@@ -381,10 +386,10 @@ View history under **Weekly reports**. Defect density (MVP): defects ÷ closed r
 
 | Symptom | What to check |
 |---------|----------------|
-| No status emails | SMTP configuration; otherwise check **server console** for `Links:` |
+| No status emails | Configure **Gmail API** in Settings (preferred on Railway); SMTP is optional for local. Otherwise check **server console** for `Links:` |
 | Link says expired | Window closed; wait for next day’s open (typically one window per day) |
 | Resource not chased | Inactive resource, or leave covering today |
-| PM not notified | User must be Project Manager, AVP, or VP with a valid email; check SMTP/console |
+| PM not notified | User must be Project Manager, AVP, or VP with a valid email; check Gmail/SMTP/console |
 | Menu missing | Feature access for your role; sign out and back in |
 | Cannot edit projects | Need **Edit delivery data** |
 | Cannot run agent | Need **Run agent jobs** |
@@ -392,7 +397,7 @@ View history under **Weekly reports**. Defect density (MVP): defects ÷ closed r
 | Cannot sign in | Correct seed/user password; admin-created account exists |
 | Teams not responding | Bot credentials, linking, mute state; see Teams integration doc |
 | Billing looks wrong | Assignment rates, leaves, extras, working-days override |
-| AI summary/proposal fails | Configure `OPENAI_API_KEY`; message explains when AI is unavailable |
+| AI summary/proposal fails | Configure OpenAI in **Settings** or `OPENAI_API_KEY`; message explains when AI is unavailable |
 | Mobile cannot reach API | App uses the production Railway URL by default; check internet / VPN |
 
 ---
@@ -450,6 +455,8 @@ Unauthenticated visitors see a public home page and FAQ (answer-engine friendly)
 - **Billing**: month view, account/project rollups, optional working-days override when you have edit permission.
 - **GTS Report**: pick account/month, generate/refresh, edit header fields, view lines.
 - **AI Agent**: list jobs and **Run now** when you have run-agent permission.
+- **Settings** (Company Admin / CEO): same app variables as web, including Gmail API mail and Meet/Teams.
+- **Meeting Notes mic**: tap the microphone to dictate notes (speech-to-text).
 - Install Android: `mobile/dist/AI_Scrum_Master-release.apk` after a release build (see `mobile/README.md`).
 
 ---
