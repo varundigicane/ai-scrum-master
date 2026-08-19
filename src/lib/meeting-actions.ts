@@ -10,6 +10,10 @@ import {
   generateProposalAi,
 } from "@/lib/meeting-ai";
 import type { RequirementKind, TaskKind } from "@/generated/prisma/enums";
+import {
+  composeMeetingLocation,
+  provisionMeetingLinks,
+} from "@/lib/meeting-providers";
 
 function revalidateMeeting(id?: string) {
   revalidatePath("/dashboard/meeting-notes");
@@ -329,22 +333,63 @@ export async function createMeetingEvent(formData: FormData): Promise<ActionResu
       if (!note) return { ok: false, error: "Meeting note not found." };
     }
 
-    const event = await prisma.meetingEvent.create({
+    const timezone = String(formData.get("timezone") ?? "Asia/Kolkata").trim() || "Asia/Kolkata";
+    const attendees = String(formData.get("attendees") ?? "");
+    const room = String(formData.get("room") ?? "").trim();
+    const legacyLocation = String(formData.get("location") ?? "").trim();
+    const pastedMeet = String(formData.get("googleMeetUrl") ?? "").trim();
+    const pastedTeams = String(formData.get("teamsJoinUrl") ?? "").trim();
+    const createGoogleMeet =
+      formData.get("createGoogleMeet") === "on" || formData.get("createGoogleMeet") === "true";
+    const createTeamsMeeting =
+      formData.get("createTeamsMeeting") === "on" || formData.get("createTeamsMeeting") === "true";
+
+    const provisioned = await provisionMeetingLinks({
+      title,
+      startsAt: start,
+      endsAt: end,
+      timezone,
+      attendees,
+      createGoogleMeet,
+      createTeamsMeeting,
+      pastedMeetUrl: pastedMeet,
+      pastedTeamsUrl: pastedTeams,
+    });
+
+    const location =
+      composeMeetingLocation({
+        room: room || undefined,
+        googleMeetUrl: provisioned.googleMeetUrl,
+        teamsJoinUrl: provisioned.teamsJoinUrl,
+      }) ||
+      legacyLocation ||
+      null;
+
+    await prisma.meetingEvent.create({
       data: {
         companyId: session.user.companyId,
         meetingNoteId,
         title,
         startsAt: start,
         endsAt: end,
-        timezone: String(formData.get("timezone") ?? "Asia/Kolkata"),
-        attendees: String(formData.get("attendees") ?? ""),
-        location: String(formData.get("location") ?? "") || null,
+        timezone,
+        attendees,
+        location,
+        googleEventId: provisioned.googleEventId ?? null,
+        googleMeetUrl: provisioned.googleMeetUrl ?? null,
+        teamsJoinUrl: provisioned.teamsJoinUrl ?? null,
+        teamsMeetingId: provisioned.teamsMeetingId ?? null,
       },
     });
 
     revalidateMeeting(meetingNoteId ?? undefined);
     revalidatePath("/dashboard/meeting-notes");
-    return { ok: true, message: "Meeting scheduled. Use Download ICS on the event list." };
+    const warn =
+      provisioned.warnings.length > 0 ? ` ${provisioned.warnings.join(" ")}` : "";
+    return {
+      ok: true,
+      message: `Meeting scheduled. Use Download ICS on the event list.${warn}`,
+    };
   } catch (error) {
     return { ok: false, error: toFriendlyError(error) };
   }

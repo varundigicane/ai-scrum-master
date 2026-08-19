@@ -4,6 +4,9 @@ import 'meeting_notes_screen.dart';
 import 'overview_screen.dart';
 import 'projects_screen.dart';
 import 'placeholder_screen.dart';
+import 'billing_screen.dart';
+import 'gts_screen.dart';
+import 'agent_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.api, required this.onLogout});
@@ -60,6 +63,12 @@ class _HomeShellState extends State<HomeShell> {
         return ProjectsScreen(api: widget.api);
       case 'meeting_notes':
         return MeetingNotesScreen(api: widget.api);
+      case 'billing':
+        return BillingScreen(api: widget.api);
+      case 'gts_report':
+        return GtsScreen(api: widget.api);
+      case 'agent':
+        return AgentScreen(api: widget.api);
       case 'overview':
         return OverviewScreen(me: me, onRefresh: _load);
       default:
@@ -67,7 +76,11 @@ class _HomeShellState extends State<HomeShell> {
           (m) => m['key'] == selectedKey,
           orElse: () => {'label': selectedKey ?? 'Screen'},
         )['label'];
-        return PlaceholderScreen(title: label?.toString() ?? 'Screen', message: 'Connected via mobile API. Open this area on web for full editors, or extend the mobile route for this menu.');
+        return PlaceholderScreen(
+          title: label?.toString() ?? 'Screen',
+          message:
+              'Connected via mobile API. Open this area on web for full editors, or extend the mobile route for this menu.',
+        );
     }
   }
 
@@ -91,10 +104,19 @@ class _HomeShellState extends State<HomeShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('AI Scrum Master', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                    Text(
+                      'AI Scrum Master',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(user?['name']?.toString() ?? '…'),
-                    Text(user?['roleLabel']?.toString() ?? user?['role']?.toString() ?? '', style: TextStyle(color: Colors.blueGrey.shade600, fontSize: 12)),
+                    Text(
+                      user?['roleLabel']?.toString() ?? user?['role']?.toString() ?? '',
+                      style: TextStyle(color: Colors.blueGrey.shade600, fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -128,7 +150,12 @@ class _HomeShellState extends State<HomeShell> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : error != null
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(error!, textAlign: TextAlign.center)))
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(error!, textAlign: TextAlign.center),
+                  ),
+                )
               : body,
     );
   }

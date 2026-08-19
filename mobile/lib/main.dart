@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
@@ -61,6 +62,12 @@ class _AiScrumAppState extends State<AiScrumApp> {
       title: 'AI Scrum Master',
       debugShowCheckedModeBanner: false,
       theme: digicaneLightTheme,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('en')],
       home: token == null
           ? LoginScreen(api: api, onLoggedIn: onLoggedIn)
           : HomeShell(api: api, onLogout: onLogout),

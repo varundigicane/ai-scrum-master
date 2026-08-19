@@ -795,18 +795,24 @@ model ProposalRequirement {
 }
 
 model MeetingEvent {
-  id            String   @id @default(cuid())
-  companyId     String
-  meetingNoteId String?
-  title         String
-  startsAt      DateTime
-  endsAt        DateTime
-  timezone      String   @default("Asia/Kolkata")
-  attendees     String   @default("")
-  location      String?
-  googleEventId String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  companyId      String
+  meetingNoteId  String?
+  title          String
+  startsAt       DateTime
+  endsAt         DateTime
+  timezone       String   @default("Asia/Kolkata")
+  attendees      String   @default("")
+  location       String?
+  googleEventId  String?
+  /// Auto-provisioned or pasted Google Meet join URL
+  googleMeetUrl  String?
+  /// Auto-provisioned or pasted Teams join URL
+  teamsJoinUrl   String?
+  /// Graph onlineMeeting id when Teams was auto-created
+  teamsMeetingId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   meetingNote MeetingNote? @relation(fields: [meetingNoteId], references: [id], onDelete: SetNull)

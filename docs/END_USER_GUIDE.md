@@ -393,7 +393,7 @@ View history under **Weekly reports**. Defect density (MVP): defects ÷ closed r
 | Teams not responding | Bot credentials, linking, mute state; see Teams integration doc |
 | Billing looks wrong | Assignment rates, leaves, extras, working-days override |
 | AI summary/proposal fails | Configure `OPENAI_API_KEY`; message explains when AI is unavailable |
-| Mobile cannot reach API | Use `http://10.0.2.2:3000` on Android emulator, or your PC LAN IP on a device |
+| Mobile cannot reach API | App uses the production Railway URL by default; check internet / VPN |
 
 ---
 
@@ -424,7 +424,11 @@ AI steps (2–4) need `OPENAI_API_KEY` configured on the server. If a button fai
 7. Select **Generate FRs**. Review the list (epic / feature / story / task / subtask hints).
 8. Choose a **Target project** and select **Create epic / feature / task hierarchy** (or **Push to backlog** in Next). Existing backlog items are not deleted; new items are added.
 9. From the notes list anytime, use **Open & convert** to return to this pipeline.
-10. **Schedule meeting** (optional) — start/end/timezone/location → **Download ICS**.
+10. **Schedule meeting** (optional):
+    - Pick **date**, **start/end hour and minute** (dropdowns), and **timezone** (default Asia/Kolkata).
+    - Optionally tick **Create Google Meet** / **Create Teams meeting** when the server has credentials configured; otherwise paste Meet/Teams URLs.
+    - Save → join links appear on the event; **Download ICS** still works for any calendar app.
+    - If auto-create fails or is not configured, the meeting is still saved (you can paste links).
 
 Plain textareas are no longer used for notes or proposal bodies — both use the shared rich-text editor.
 
@@ -439,10 +443,14 @@ Unauthenticated visitors see a public home page and FAQ (answer-engine friendly)
 ## 12. Mobile app (Flutter)
 
 - Digicane light theme and a **collapsible menu** (drawer) from the top-left.
-- Sign in with the same email/password as the web app (separate mobile token API — web sessions unchanged).
+- Sign in with the same email/password as the web app (separate mobile token API — web sessions unchanged). Production API URL is baked into the app.
 - Drawer menus follow Feature access for your role.
-- Overview KPIs, Projects, Meeting Notes (list/create). Full AI proposal/FR pipeline remains on the web detail page.
-- Install Android: see `mobile/README.md` and `mobile/build/app/outputs/flutter-apk/app-release.apk` after release build.
+- **Overview** KPIs and **Projects**.
+- **Meeting Notes**: list/create with rich-text (Quill), open detail for the full pipeline (summary → proposal → FRs → push backlog) and schedule with the same date/time dropdowns and Meet/Teams options as web.
+- **Billing**: month view, account/project rollups, optional working-days override when you have edit permission.
+- **GTS Report**: pick account/month, generate/refresh, edit header fields, view lines.
+- **AI Agent**: list jobs and **Run now** when you have run-agent permission.
+- Install Android: `mobile/dist/AI_Scrum_Master-release.apk` after a release build (see `mobile/README.md`).
 
 ---
 

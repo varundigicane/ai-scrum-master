@@ -6,6 +6,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { MeetingNoteFields } from "@/components/MeetingNoteFields";
 import { MeetingPipelineStepper } from "@/components/MeetingPipelineStepper";
 import { ProposalEditor } from "@/components/ProposalEditor";
+import { MeetingScheduleFields } from "@/components/MeetingScheduleFields";
 import {
   createMeetingEvent,
   generateFrsAction,
@@ -15,6 +16,7 @@ import {
   saveProposalBody,
   updateMeetingNote,
 } from "@/lib/meeting-actions";
+import { getMeetingProvidersStatus } from "@/lib/meeting-providers";
 
 export default async function MeetingNoteDetailPage({
   params,
@@ -44,6 +46,7 @@ export default async function MeetingNoteDetailPage({
     include: { account: true },
     orderBy: { name: "asc" },
   });
+  const providers = getMeetingProvidersStatus();
 
   async function withRedirect(
     action: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>,
@@ -327,36 +330,12 @@ export default async function MeetingNoteDetailPage({
           }}
           className="grid gap-3 md:grid-cols-2"
         >
-          <div className="md:col-span-2">
-            <label className="label" htmlFor="eventTitle">
-              Title
-            </label>
-            <input className="input" id="eventTitle" name="title" defaultValue={note.title} required />
-          </div>
-          <div>
-            <label className="label" htmlFor="startsAt">
-              Starts
-            </label>
-            <input className="input" id="startsAt" name="startsAt" type="datetime-local" required />
-          </div>
-          <div>
-            <label className="label" htmlFor="endsAt">
-              Ends
-            </label>
-            <input className="input" id="endsAt" name="endsAt" type="datetime-local" required />
-          </div>
-          <div>
-            <label className="label" htmlFor="timezone">
-              Timezone
-            </label>
-            <input className="input" id="timezone" name="timezone" defaultValue="Asia/Kolkata" />
-          </div>
-          <div>
-            <label className="label" htmlFor="location">
-              Location / link
-            </label>
-            <input className="input" id="location" name="location" />
-          </div>
+          <MeetingScheduleFields
+            googleConfigured={providers.google}
+            teamsConfigured={providers.teams}
+            defaultTitle={note.title}
+            defaultAttendees={note.attendees}
+          />
           <div className="md:col-span-2">
             <button className="btn" type="submit">
               Save schedule
@@ -369,11 +348,29 @@ export default async function MeetingNoteDetailPage({
               key={e.id}
               className="flex flex-wrap items-center justify-between gap-2 border border-[var(--border)] rounded-lg p-3"
             >
-              <div>
+              <div className="space-y-1">
                 <div className="font-medium">{e.title}</div>
                 <div className="text-[var(--muted)]">
                   {e.startsAt.toLocaleString()} → {e.endsAt.toLocaleString()} ({e.timezone})
                 </div>
+                {e.googleMeetUrl ? (
+                  <a className="text-sm text-[var(--accent)] underline" href={e.googleMeetUrl} target="_blank" rel="noreferrer">
+                    Google Meet
+                  </a>
+                ) : null}
+                {e.teamsJoinUrl ? (
+                  <a
+                    className="text-sm text-[var(--accent)] underline ml-3"
+                    href={e.teamsJoinUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Teams
+                  </a>
+                ) : null}
+                {!e.googleMeetUrl && !e.teamsJoinUrl && e.location ? (
+                  <div className="text-[var(--muted)]">{e.location}</div>
+                ) : null}
               </div>
               <a className="btn-secondary btn text-sm" href={`/api/meeting-events/${e.id}/ics`}>
                 Download ICS
@@ -382,7 +379,7 @@ export default async function MeetingNoteDetailPage({
           ))}
         </ul>
         <p className="text-xs text-[var(--muted)]">
-          Google Calendar sync is optional. ICS works for any calendar app without changing existing data.
+          Meet/Teams auto-create needs server credentials. ICS always works for any calendar app.
         </p>
       </section>
     </div>

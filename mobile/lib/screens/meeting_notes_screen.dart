@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
+
 import '../api.dart';
+import '../widgets/quill_notes_field.dart';
+import 'meeting_note_detail_screen.dart';
 
 class MeetingNotesScreen extends StatefulWidget {
   const MeetingNotesScreen({super.key, required this.api});
@@ -25,21 +29,24 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
 
   Future<void> createNote() async {
     final titleCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
     final attendeesCtrl = TextEditingController();
+    final notesCtrl = QuillController.basic();
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('New meeting note'),
         content: SizedBox(
           width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
-              TextField(controller: attendeesCtrl, decoration: const InputDecoration(labelText: 'Attendees')),
-              TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes'), maxLines: 5),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+                TextField(controller: attendeesCtrl, decoration: const InputDecoration(labelText: 'Attendees')),
+                const SizedBox(height: 8),
+                QuillNotesField(controller: notesCtrl, minHeight: 120),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -50,17 +57,30 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
     );
     if (ok != true) return;
     try {
-      await widget.api.createMeetingNote(
+      final created = await widget.api.createMeetingNote(
         title: titleCtrl.text.trim(),
-        rawNotes: notesCtrl.text.trim(),
+        rawNotes: quillToHtmlish(notesCtrl),
         attendees: attendeesCtrl.text.trim(),
       );
       await refresh();
+      final id = (created['note'] as Map?)?['id']?.toString();
+      if (id != null && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MeetingNoteDetailScreen(api: widget.api, noteId: id),
+          ),
+        );
+        await refresh();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
+    } finally {
+      notesCtrl.dispose();
+      titleCtrl.dispose();
+      attendeesCtrl.dispose();
     }
   }
 
@@ -98,9 +118,20 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
                   child: ListTile(
                     title: Text(n['title']?.toString() ?? ''),
                     subtitle: Text(
-                      'Summary: ${hasSummary ? 'Yes' : 'No'} · Proposal: ${hasProposal ? 'Yes' : 'No'}\nUse the web Meeting Notes detail for AI summary, proposal, FR, and backlog push.',
+                      'Summary: ${hasSummary ? 'Yes' : 'No'} · Proposal: ${hasProposal ? 'Yes' : 'No'}',
                     ),
-                    isThreeLine: true,
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MeetingNoteDetailScreen(
+                            api: widget.api,
+                            noteId: n['id'].toString(),
+                          ),
+                        ),
+                      );
+                      await refresh();
+                    },
                   ),
                 );
               },

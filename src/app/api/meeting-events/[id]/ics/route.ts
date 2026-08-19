@@ -24,6 +24,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   });
   if (!event) return NextResponse.json({ error: "Meeting not found." }, { status: 404 });
 
+  const descParts: string[] = [];
+  if (event.attendees) descParts.push(`Attendees: ${event.attendees}`);
+  if (event.googleMeetUrl) descParts.push(`Google Meet: ${event.googleMeetUrl}`);
+  if (event.teamsJoinUrl) descParts.push(`Teams: ${event.teamsJoinUrl}`);
+
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -37,7 +42,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     `DTEND:${toIcsDate(event.endsAt)}`,
     `SUMMARY:${icsEscape(event.title)}`,
     event.location ? `LOCATION:${icsEscape(event.location)}` : null,
-    event.attendees ? `DESCRIPTION:${icsEscape(`Attendees: ${event.attendees}`)}` : null,
+    descParts.length ? `DESCRIPTION:${icsEscape(descParts.join("\n"))}` : null,
     "END:VEVENT",
     "END:VCALENDAR",
   ]

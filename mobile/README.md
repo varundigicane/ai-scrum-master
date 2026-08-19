@@ -12,7 +12,7 @@ There is **no API base URL field** on the login screen. Change `kApiBaseUrl` and
 
 ## Prerequisites
 
-- Flutter SDK 3.47+ (`C:\Users\Varun\flutter` on the build machine, or any PATH install)
+- Flutter SDK 3.9+ (`C:\Users\Varun\flutter` on the build machine, or any PATH install)
 - Android SDK + JDK 17
 
 ## Run
@@ -55,8 +55,12 @@ Open `mobile/ios` in Xcode on a Mac to archive. This Windows environment produce
 
 - Email/password login via `/api/mobile/login` (does not change web NextAuth cookies)
 - Role-based drawer menus from `/api/mobile/me`
-- Overview KPIs, Projects list, Meeting Notes list/create
-- Other menus open a connected placeholder pointing users to the web app for full editors
+- **Overview** KPIs and **Projects**
+- **Meeting Notes** — Quill rich text, detail pipeline (summary → proposal → FRs → push backlog), schedule with date/hour/minute/timezone dropdowns and Meet/Teams auto-create or paste
+- **Billing** — month totals by account/project/resource + working-days override
+- **GTS Report** — generate/refresh month, edit header, view lines
+- **AI Agent** — list jobs and Run now (when permitted)
+- Other menus stay as lightweight placeholders pointing to the web app
 
 ## Data safety
 

@@ -10,14 +10,17 @@ class ApiClient {
   final String baseUrl;
   final String? token;
 
-  static const Duration _timeout = Duration(seconds: 20);
+  static const Duration _timeout = Duration(seconds: 45);
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
       };
 
-  Uri _u(String path) => Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}$path');
+  Uri _u(String path, [Map<String, String>? query]) {
+    final base = baseUrl.replaceAll(RegExp(r'/+$'), '');
+    return Uri.parse('$base$path').replace(queryParameters: query);
+  }
 
   Never _rethrowFriendly(Object error) {
     if (error is TimeoutException) {
@@ -46,6 +49,14 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> _json(http.Response res, {String fallback = 'Request failed'}) async {
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode >= 400) {
+      throw Exception(body['error']?.toString() ?? fallback);
+    }
+    return body;
+  }
+
   Future<Map<String, dynamic>> login(String email, String password) async {
     final res = await _send(
       () => http.post(
@@ -54,28 +65,17 @@ class ApiClient {
         body: jsonEncode({'email': email, 'password': password}),
       ),
     );
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode >= 400) {
-      throw Exception(body['error']?.toString() ?? 'Sign in failed');
-    }
-    return body;
+    return _json(res, fallback: 'Sign in failed');
   }
 
   Future<Map<String, dynamic>> me() async {
     final res = await _send(() => http.get(_u('/api/mobile/me'), headers: _headers));
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode >= 400) {
-      throw Exception(body['error']?.toString() ?? 'Session expired');
-    }
-    return body;
+    return _json(res, fallback: 'Session expired');
   }
 
   Future<List<dynamic>> meetingNotes() async {
     final res = await _send(() => http.get(_u('/api/mobile/meeting-notes'), headers: _headers));
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode >= 400) {
-      throw Exception(body['error']?.toString() ?? 'Could not load notes');
-    }
+    final body = await _json(res, fallback: 'Could not load notes');
     return (body['notes'] as List<dynamic>?) ?? [];
   }
 
@@ -91,19 +91,106 @@ class ApiClient {
         body: jsonEncode({'title': title, 'rawNotes': rawNotes, 'attendees': attendees}),
       ),
     );
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode >= 400) {
-      throw Exception(body['error']?.toString() ?? 'Could not save note');
-    }
-    return body;
+    return _json(res, fallback: 'Could not save note');
+  }
+
+  Future<Map<String, dynamic>> meetingNoteDetail(String id) async {
+    final res = await _send(() => http.get(_u('/api/mobile/meeting-notes/$id'), headers: _headers));
+    return _json(res, fallback: 'Could not load note');
+  }
+
+  Future<Map<String, dynamic>> updateMeetingNote(
+    String id, {
+    required String title,
+    required String rawNotes,
+    String attendees = '',
+  }) async {
+    final res = await _send(
+      () => http.patch(
+        _u('/api/mobile/meeting-notes/$id'),
+        headers: _headers,
+        body: jsonEncode({'title': title, 'rawNotes': rawNotes, 'attendees': attendees}),
+      ),
+    );
+    return _json(res, fallback: 'Could not update note');
+  }
+
+  Future<Map<String, dynamic>> meetingAction(String id, String action, [Map<String, dynamic>? body]) async {
+    final res = await _send(
+      () => http.post(
+        _u('/api/mobile/meeting-notes/$id', {'action': action}),
+        headers: _headers,
+        body: jsonEncode(body ?? {}),
+      ),
+    );
+    return _json(res, fallback: 'Action failed');
+  }
+
+  Future<Map<String, dynamic>> meetingProviders() async {
+    final res = await _send(() => http.get(_u('/api/mobile/meeting-providers'), headers: _headers));
+    return _json(res, fallback: 'Could not load providers');
   }
 
   Future<List<dynamic>> projects() async {
     final res = await _send(() => http.get(_u('/api/mobile/projects'), headers: _headers));
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode >= 400) {
-      throw Exception(body['error']?.toString() ?? 'Could not load projects');
-    }
+    final body = await _json(res, fallback: 'Could not load projects');
     return (body['projects'] as List<dynamic>?) ?? [];
+  }
+
+  Future<Map<String, dynamic>> billing({required int year, required int month}) async {
+    final res = await _send(
+      () => http.get(
+        _u('/api/mobile/billing', {'year': '$year', 'month': '$month'}),
+        headers: _headers,
+      ),
+    );
+    return _json(res, fallback: 'Could not load billing');
+  }
+
+  Future<Map<String, dynamic>> saveBillingOverride({
+    required int year,
+    required int month,
+    required int totalWorkingDays,
+    String note = '',
+  }) async {
+    final res = await _send(
+      () => http.post(
+        _u('/api/mobile/billing'),
+        headers: _headers,
+        body: jsonEncode({
+          'year': year,
+          'month': month,
+          'totalWorkingDays': totalWorkingDays,
+          'note': note,
+        }),
+      ),
+    );
+    return _json(res, fallback: 'Could not save override');
+  }
+
+  Future<Map<String, dynamic>> gts({String? accountId, required int year, required int month}) async {
+    final query = <String, String>{'year': '$year', 'month': '$month'};
+    if (accountId != null && accountId.isNotEmpty) query['accountId'] = accountId;
+    final res = await _send(() => http.get(_u('/api/mobile/gts', query), headers: _headers));
+    return _json(res, fallback: 'Could not load GTS');
+  }
+
+  Future<Map<String, dynamic>> gtsAction(Map<String, dynamic> body) async {
+    final res = await _send(
+      () => http.post(_u('/api/mobile/gts'), headers: _headers, body: jsonEncode(body)),
+    );
+    return _json(res, fallback: 'GTS action failed');
+  }
+
+  Future<Map<String, dynamic>> agentJobs() async {
+    final res = await _send(() => http.get(_u('/api/mobile/agent'), headers: _headers));
+    return _json(res, fallback: 'Could not load agent jobs');
+  }
+
+  Future<Map<String, dynamic>> runAgentJob(String job) async {
+    final res = await _send(
+      () => http.post(_u('/api/mobile/agent'), headers: _headers, body: jsonEncode({'job': job})),
+    );
+    return _json(res, fallback: 'Agent job failed');
   }
 }
