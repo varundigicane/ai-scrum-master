@@ -112,6 +112,7 @@ Sidebar items appear only if your role (and Feature access) allows them. Brand l
 | Accounts | `/dashboard/accounts` | Client accounts |
 | Projects | `/dashboard/projects` | Projects and assignments |
 | Epic / Story / Task | `/dashboard/backlog` | Pick a project for backlog management |
+| Meeting Notes | `/dashboard/meeting-notes` | Business notes → summary → proposal → FR → backlog |
 | Resources | `/dashboard/resources` | People master |
 | Users & roles | `/dashboard/users` | Staff users and roles |
 | Feature access | `/dashboard/permissions` | Menus/actions per role |
@@ -391,10 +392,48 @@ View history under **Weekly reports**. Defect density (MVP): defects ÷ closed r
 | Cannot sign in | Correct seed/user password; admin-created account exists |
 | Teams not responding | Bot credentials, linking, mute state; see Teams integration doc |
 | Billing looks wrong | Assignment rates, leaves, extras, working-days override |
+| AI summary/proposal fails | Configure `OPENAI_API_KEY`; message explains when AI is unavailable |
+| Mobile cannot reach API | Use `http://10.0.2.2:3000` on Android emulator, or your PC LAN IP on a device |
 
 ---
 
-## 10. Out of scope in this version
+## 10. Meeting Notes (business discussions)
+
+Menu: **Meeting Notes** (`/dashboard/meeting-notes`). Multi-tenant — notes belong to your company only.
+
+1. **Save meeting note** — title, attendees, discussion notes.
+2. Open the note → **Generate summary** (AI).
+3. **Create proposal from summary** — rich-text (WYSIWYG) editor; **Save proposal**.
+4. **Export proposal PDF** — opens a print-ready page (use browser Print → Save as PDF).
+5. **Generate FRs** — functional requirements with kind hints (epic / feature / story / task / subtask).
+6. **Push to project backlog** — selects a company project and creates hierarchy items. Existing backlog items are not deleted.
+7. **Schedule meeting** — start/end/timezone/location → **Download ICS** for any calendar app. Google Calendar OAuth is optional via env and is not required.
+
+---
+
+## 11. Public site (SEO / AEO / GEO)
+
+Unauthenticated visitors see a public home page and FAQ (answer-engine friendly). Staff still sign in at `/login`. Authenticated users hitting `/` go to the dashboard. Private `/dashboard` routes are not indexed. See also `/llms.txt`, `/sitemap.xml`, and `/robots.txt`.
+
+---
+
+## 12. Mobile app (Flutter)
+
+- Digicane light theme and a **collapsible menu** (drawer) from the top-left.
+- Sign in with the same email/password as the web app (separate mobile token API — web sessions unchanged).
+- Drawer menus follow Feature access for your role.
+- Overview KPIs, Projects, Meeting Notes (list/create). Full AI proposal/FR pipeline remains on the web detail page.
+- Install Android: see `mobile/README.md` and `mobile/build/app/outputs/flutter-apk/app-release.apk` after release build.
+
+---
+
+## 13. UI feedback and errors
+
+Buttons, inputs, and nav links show hover, focus, and active states. Errors appear as short human-readable banners (permission, network, AI unavailable, validation) instead of technical stack traces.
+
+---
+
+## 14. Out of scope in this version
 
 Treat these as not available unless later released:
 
@@ -402,14 +441,14 @@ Treat these as not available unless later released:
 - Jira / Azure DevOps sync
 - Free-form email reply parsing (email delivers the link only)
 - Slack / SMS notifications
-- Native mobile apps
 - Public self-signup or password reset UI
+- Play Store / App Store listing submission (APK is sideload-ready)
 
 ---
 
-## 11. Quick reference
+## 15. Quick reference
 
-### 11.1 Agent jobs
+### 15.1 Agent jobs
 
 | Job name | UI label | Effect |
 |----------|----------|--------|
@@ -419,24 +458,25 @@ Treat these as not available unless later released:
 | `weekly-reports` | Generate weekly packs | Resource + project + company packs |
 | `run-all-daily` | (cron only) | Open + close + deadline in one call |
 
-### 11.2 Default menus by role
+### 15.2 Default menus by role
 
 | Role | Default access (high level) |
 |------|-----------------------------|
 | Company Admin | Everything |
 | CEO | Almost all menus + users, permissions, agent, teams, settings + manage actions |
 | SVP | Like CEO without edit settings (has users, permissions, agent, teams) |
-| VP / AVP | Delivery menus + edit delivery (no agent/users/settings by default) |
-| Project Manager | Delivery menus + agent + run agent |
-| Employee | Overview, Projects, Epic/Story/Task, Work breakdown, Daily status |
+| VP / AVP | Delivery menus + edit delivery + meeting notes (no agent/users/settings by default) |
+| Project Manager | Delivery menus + meeting notes + agent + run agent |
+| Employee | Overview, Projects, Epic/Story/Task, Work breakdown, Daily status, Meeting Notes |
 
-### 11.3 Related documentation
+### 15.3 Related documentation
 
 | Document | Use |
 |----------|-----|
 | `docs/TEAMS_INTEGRATION.md` | Teams bot installation and configuration |
-| `docs/DEPLOYMENT.md` | Cron, env vars, production deploy |
+| `docs/DEPLOYMENT.md` | Cron, env vars, production deploy, DB backup before migrate |
 | `docs/DOCKER_LOCAL.md` | Local Docker Desktop stack |
+| `mobile/README.md` | Flutter run / Android APK |
 | `docs/FRD.md` | Formal functional requirements |
 | `docs/ARCHITECTURE.md` | System design (technical) |
 

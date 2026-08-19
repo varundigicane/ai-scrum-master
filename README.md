@@ -24,6 +24,7 @@ Standalone multi-tenant delivery platform that replaces manual Scrum Master stat
 | **MS Teams agent** | [docs/TEAMS_INTEGRATION.md](docs/TEAMS_INTEGRATION.md) |
 | **End User Guide (Word)** | [docs/AI_Scrum_Master_End_User_Guide.docx](docs/AI_Scrum_Master_End_User_Guide.docx) |
 | End User Guide (Markdown) | [docs/END_USER_GUIDE.md](docs/END_USER_GUIDE.md) |
+| Mobile (Flutter) | [mobile/README.md](mobile/README.md) |
 | Functional Usage Guide (superseded) | [docs/FUNCTIONAL_USAGE_GUIDE.md](docs/FUNCTIONAL_USAGE_GUIDE.md) |
 
 ## Quick start (Docker Desktop — full stack)

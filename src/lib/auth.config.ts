@@ -45,11 +45,18 @@ export const authConfig = {
         pathname.startsWith("/api/teams") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/api/health") ||
-        pathname === "/login"
+        pathname.startsWith("/api/mobile") ||
+        pathname === "/login" ||
+        pathname === "/" ||
+        pathname === "/faq" ||
+        pathname === "/llms.txt" ||
+        pathname === "/robots.txt" ||
+        pathname === "/sitemap.xml" ||
+        pathname.startsWith("/product")
       ) {
         return true;
       }
-      if (pathname.startsWith("/dashboard") || pathname === "/") {
+      if (pathname.startsWith("/dashboard")) {
         return !!auth?.user;
       }
       return true;

@@ -6,6 +6,18 @@
 
 ---
 
+## Database backup (before migrations)
+
+Before applying schema migrations on a shared or production database, take a backup so no data can be lost:
+
+```bash
+pg_dump "$DATABASE_URL" -Fc -f backup-$(date +%Y%m%d).dump
+```
+
+Migrations in this project are designed to be **additive** (new tables/columns only). Do not drop existing delivery tables.
+
+---
+
 ## 1. Scope
 
 This document covers how to deploy the application, configure environment, schedule agent jobs, and the **Non-Functional Requirements (NFRs)** the system should meet in production.

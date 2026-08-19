@@ -6,8 +6,9 @@
 | [End User Guide (Markdown)](./END_USER_GUIDE.md) | Same guide as editable Markdown source |
 | [Functional Requirements (FRD)](./FRD.md) | Formal functional requirements, business rules, acceptance criteria |
 | [Architecture](./ARCHITECTURE.md) | System design, components, data model, flows, security |
-| [Deployment & NFRs](./DEPLOYMENT.md) | Deploy steps, cron, env config, non-functional requirements |
+| [Deployment & NFRs](./DEPLOYMENT.md) | Deploy steps, cron, env config, backup before migrate, NFRs |
 | [Functional Usage Guide](./FUNCTIONAL_USAGE_GUIDE.md) | Superseded — see End User Guide |
+| [Mobile app (Flutter)](../mobile/README.md) | Android/iOS client, drawer menu, APK build |
 
 Quick start for developers remains in the root [README](../README.md).
 

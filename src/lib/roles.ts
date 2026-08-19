@@ -38,6 +38,7 @@ export type FeatureKey =
   | "quality"
   | "backlog"
   | "teams"
+  | "meeting_notes"
   | "edit_delivery"
   | "manage_users"
   | "run_agent"
@@ -106,6 +107,13 @@ export const FEATURE_CATALOG: FeatureDef[] = [
     kind: "menu",
     href: "/dashboard/teams",
   },
+  {
+    key: "meeting_notes",
+    label: "Meeting Notes",
+    description: "Business discussion notes, summaries, proposals, and backlog generation",
+    kind: "menu",
+    href: "/dashboard/meeting-notes",
+  },
   { key: "settings", label: "Settings", description: "Company window settings", kind: "menu", href: "/dashboard/settings" },
   {
     key: "edit_delivery",
@@ -152,6 +160,7 @@ const almostAllMenus: FeatureKey[] = [
   "leaves",
   "reports",
   "gts_report",
+  "meeting_notes",
   "edit_delivery",
 ];
 
@@ -183,7 +192,7 @@ export const DEFAULT_FEATURE_MATRIX: Record<Role, FeatureKey[]> = {
   VP: [...almostAllMenus],
   AVP: [...almostAllMenus],
   ProjectManager: [...almostAllMenus, "agent", "run_agent"],
-  Employee: ["overview", "projects", "backlog", "workboard", "status"],
+  Employee: ["overview", "projects", "backlog", "workboard", "status", "meeting_notes"],
 };
 
 /** @deprecated use hasFeature — kept for sync helpers */

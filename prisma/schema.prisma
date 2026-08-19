@@ -123,6 +123,9 @@ model Company {
   billingMonthOverrides BillingMonthOverride[]
   roleFeatures          RoleFeature[]
   gtsMonthlyReports     GtsMonthlyReport[]
+  meetingNotes          MeetingNote[]
+  softwareProposals     SoftwareProposal[]
+  meetingEvents         MeetingEvent[]
 }
 
 model User {
@@ -136,8 +139,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  resource Resource?
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  resource     Resource?
+  meetingNotes MeetingNote[]
 
   @@index([companyId])
 }
@@ -718,4 +722,94 @@ model TeamsInteraction {
   createdAt       DateTime @default(now())
 
   @@index([companyId, createdAt])
+}
+
+/// Business discussion notes (multi-tenant). Additive — does not alter existing delivery data.
+model MeetingNote {
+  id          String   @id @default(cuid())
+  companyId   String
+  createdById String
+  accountId   String?
+  projectId   String?
+  title       String
+  attendees   String   @default("")
+  rawNotes    String   @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  summary   MeetingSummary?
+  proposal  SoftwareProposal?
+  events    MeetingEvent[]
+
+  @@index([companyId, createdAt])
+  @@index([createdById])
+}
+
+model MeetingSummary {
+  id            String   @id @default(cuid())
+  meetingNoteId String   @unique
+  summaryMd     String   @db.Text
+  decisionsJson String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  meetingNote MeetingNote @relation(fields: [meetingNoteId], references: [id], onDelete: Cascade)
+}
+
+model SoftwareProposal {
+  id            String   @id @default(cuid())
+  companyId     String
+  meetingNoteId String?  @unique
+  title         String
+  /// HTML or markdown body for WYSIWYG editing
+  bodyHtml      String   @db.Text
+  status        String   @default("draft")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company       Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  meetingNote   MeetingNote?          @relation(fields: [meetingNoteId], references: [id], onDelete: SetNull)
+  requirements  ProposalRequirement[]
+
+  @@index([companyId, createdAt])
+}
+
+model ProposalRequirement {
+  id          String   @id @default(cuid())
+  proposalId  String
+  title       String
+  description String   @db.Text
+  priority    String   @default("should")
+  sortOrder   Int      @default(0)
+  /// epic | feature | story | task | subtask
+  kindHint    String   @default("story")
+  parentTitle String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  proposal SoftwareProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, sortOrder])
+}
+
+model MeetingEvent {
+  id            String   @id @default(cuid())
+  companyId     String
+  meetingNoteId String?
+  title         String
+  startsAt      DateTime
+  endsAt        DateTime
+  timezone      String   @default("Asia/Kolkata")
+  attendees     String   @default("")
+  location      String?
+  googleEventId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  meetingNote MeetingNote? @relation(fields: [meetingNoteId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, startsAt])
 }

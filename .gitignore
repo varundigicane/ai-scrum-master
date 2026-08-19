@@ -50,3 +50,13 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Flutter / mobile artifacts (keep source; rebuild APK locally)
+/mobile/dist/
+/mobile/build/
+/mobile/.dart_tool/
+/mobile/android/.gradle/
+/mobile/android/build/
+/mobile/android/local.properties
+/mobile/ios/Pods/
+/mobile/**/*.apk
