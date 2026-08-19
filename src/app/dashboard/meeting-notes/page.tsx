@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { assertFeature } from "@/lib/assert-feature";
 import { FormMessage } from "@/components/FormMessage";
+import { MeetingNoteFields } from "@/components/MeetingNoteFields";
 import { createMeetingNote } from "@/lib/meeting-actions";
 
 export default async function MeetingNotesPage({
@@ -17,7 +18,7 @@ export default async function MeetingNotesPage({
   const notes = await prisma.meetingNote.findMany({
     where: { companyId: session.user.companyId },
     orderBy: { createdAt: "desc" },
-    include: { summary: true, proposal: true, events: true },
+    include: { summary: true, proposal: { include: { requirements: true } }, events: true },
     take: 100,
   });
 
@@ -35,34 +36,37 @@ export default async function MeetingNotesPage({
       <div>
         <h1 className="text-2xl font-semibold">Meeting Notes</h1>
         <p className="text-sm text-[var(--muted)] mt-1">
-          Capture business discussions, generate summaries and software proposals, then push functional
-          requirements into epics, features, stories, tasks, and subtasks.
+          Capture business discussions with the rich-text editor, then open a note to run the conversion pipeline.
         </p>
       </div>
 
       <FormMessage error={sp.error} success={sp.ok} />
 
+      <section className="panel p-4">
+        <h2 className="font-semibold mb-2">How it works</h2>
+        <ol className="grid gap-2 sm:grid-cols-5 text-sm">
+          {[
+            "1. Capture notes",
+            "2. Generate summary",
+            "3. Create proposal",
+            "4. Generate FRs",
+            "5. Push to backlog",
+          ].map((label) => (
+            <li key={label} className="rounded-lg border border-[var(--border)] bg-[var(--panel-2)] px-3 py-2">
+              {label}
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-[var(--muted)] mt-3">
+          After you save a note, use <strong>Open &amp; convert</strong> to run steps 2–5 on the note detail page.
+          AI steps need <code>OPENAI_API_KEY</code> on the server.
+        </p>
+      </section>
+
       <section className="panel p-4 space-y-3">
         <h2 className="font-semibold">New business discussion</h2>
         <form action={createAction} className="grid gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="label" htmlFor="title">
-              Title
-            </label>
-            <input className="input" id="title" name="title" required />
-          </div>
-          <div className="md:col-span-2">
-            <label className="label" htmlFor="attendees">
-              Attendees
-            </label>
-            <input className="input" id="attendees" name="attendees" placeholder="Names or emails" />
-          </div>
-          <div className="md:col-span-2">
-            <label className="label" htmlFor="rawNotes">
-              Notes
-            </label>
-            <textarea className="input min-h-40" id="rawNotes" name="rawNotes" required />
-          </div>
+          <MeetingNoteFields />
           <div>
             <button className="btn" type="submit">
               Save meeting note
@@ -79,8 +83,10 @@ export default async function MeetingNotesPage({
               <th>Title</th>
               <th>Summary</th>
               <th>Proposal</th>
+              <th>FRs</th>
               <th>Events</th>
               <th>Updated</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -93,13 +99,19 @@ export default async function MeetingNotesPage({
                 </td>
                 <td>{n.summary ? "Yes" : "—"}</td>
                 <td>{n.proposal ? "Yes" : "—"}</td>
+                <td>{n.proposal?.requirements.length ?? 0}</td>
                 <td>{n.events.length}</td>
                 <td>{n.updatedAt.toLocaleString()}</td>
+                <td>
+                  <Link className="btn text-xs px-2 py-1" href={`/dashboard/meeting-notes/${n.id}`}>
+                    Open &amp; convert
+                  </Link>
+                </td>
               </tr>
             ))}
             {notes.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-[var(--muted)]">
+                <td colSpan={7} className="text-[var(--muted)]">
                   No meeting notes yet.
                 </td>
               </tr>

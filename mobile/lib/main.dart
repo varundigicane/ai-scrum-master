@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'config.dart';
 import 'theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
@@ -9,16 +10,16 @@ import 'screens/home_shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  // Drop any legacy saved base URL (e.g. 10.0.2.2) so devices always hit production.
+  await prefs.remove('baseUrl');
   final token = prefs.getString('token');
-  final baseUrl = prefs.getString('baseUrl') ?? 'http://10.0.2.2:3000';
-  runApp(AiScrumApp(initialToken: token, initialBaseUrl: baseUrl));
+  runApp(AiScrumApp(initialToken: token));
 }
 
 class AiScrumApp extends StatefulWidget {
-  const AiScrumApp({super.key, this.initialToken, required this.initialBaseUrl});
+  const AiScrumApp({super.key, this.initialToken});
 
   final String? initialToken;
-  final String initialBaseUrl;
 
   @override
   State<AiScrumApp> createState() => _AiScrumAppState();
@@ -32,16 +33,16 @@ class _AiScrumAppState extends State<AiScrumApp> {
   void initState() {
     super.initState();
     token = widget.initialToken;
-    api = ApiClient(baseUrl: widget.initialBaseUrl, token: token);
+    api = ApiClient(baseUrl: kApiBaseUrl, token: token);
   }
 
-  Future<void> onLoggedIn(String newToken, String baseUrl) async {
+  Future<void> onLoggedIn(String newToken) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', newToken);
-    await prefs.setString('baseUrl', baseUrl);
+    await prefs.remove('baseUrl');
     setState(() {
       token = newToken;
-      api = ApiClient(baseUrl: baseUrl, token: newToken);
+      api = ApiClient(baseUrl: kApiBaseUrl, token: newToken);
     });
   }
 
@@ -50,7 +51,7 @@ class _AiScrumAppState extends State<AiScrumApp> {
     await prefs.remove('token');
     setState(() {
       token = null;
-      api = ApiClient(baseUrl: api.baseUrl, token: null);
+      api = ApiClient(baseUrl: kApiBaseUrl, token: null);
     });
   }
 

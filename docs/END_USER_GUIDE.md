@@ -3,7 +3,7 @@
 **Product:** AI Scrum Master  
 **Audience:** Company admins, delivery leadership, project managers, and team members  
 **Version:** 0.1.0  
-**Format:** This document is also available as Microsoft Word: `AI_Scrum_Master_End_User_Guide.docx`
+**Format:** This document is also available as Microsoft Word: `AI_Scrum_Master_End_User_Guide.docx` (if that file is locked in Word, use `AI_Scrum_Master_End_User_Guide_updated.docx`).
 
 ---
 
@@ -401,13 +401,32 @@ View history under **Weekly reports**. Defect density (MVP): defects ÷ closed r
 
 Menu: **Meeting Notes** (`/dashboard/meeting-notes`). Multi-tenant — notes belong to your company only.
 
-1. **Save meeting note** — title, attendees, discussion notes.
-2. Open the note → **Generate summary** (AI).
-3. **Create proposal from summary** — rich-text (WYSIWYG) editor; **Save proposal**.
-4. **Export proposal PDF** — opens a print-ready page (use browser Print → Save as PDF).
-5. **Generate FRs** — functional requirements with kind hints (epic / feature / story / task / subtask).
-6. **Push to project backlog** — selects a company project and creates hierarchy items. Existing backlog items are not deleted.
-7. **Schedule meeting** — start/end/timezone/location → **Download ICS** for any calendar app. Google Calendar OAuth is optional via env and is not required.
+### How the conversion pipeline works
+
+On the list page you will see a **How it works** strip:
+
+1. Capture notes  
+2. Generate summary  
+3. Create proposal  
+4. Generate FRs  
+5. Push to backlog  
+
+AI steps (2–4) need `OPENAI_API_KEY` configured on the server. If a button fails, the page shows a human-readable error.
+
+### Step-by-step
+
+1. Open **Meeting Notes**.
+2. Under **New business discussion**, enter a title and attendees.
+3. Enter discussion / requirement notes in the **rich-text (WYSIWYG) editor** (bold, headings, lists, links). Select **Save meeting note**.
+4. You land on the note detail page. At the top, the **Conversion pipeline** shows which steps are done and the **Next** action button.
+5. Select **Generate summary** (or use Next). Review the summary; you can regenerate later.
+6. Select **Create proposal from summary**. Edit the proposal title and body in the WYSIWYG editor, then **Save proposal**. Optionally **Export proposal PDF**.
+7. Select **Generate FRs**. Review the list (epic / feature / story / task / subtask hints).
+8. Choose a **Target project** and select **Create epic / feature / task hierarchy** (or **Push to backlog** in Next). Existing backlog items are not deleted; new items are added.
+9. From the notes list anytime, use **Open & convert** to return to this pipeline.
+10. **Schedule meeting** (optional) — start/end/timezone/location → **Download ICS**.
+
+Plain textareas are no longer used for notes or proposal bodies — both use the shared rich-text editor.
 
 ---
 

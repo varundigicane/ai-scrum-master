@@ -5,16 +5,15 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.api, required this.onLoggedIn});
 
   final ApiClient api;
-  final Future<void> Function(String token, String baseUrl) onLoggedIn;
+  final Future<void> Function(String token) onLoggedIn;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final emailCtrl = TextEditingController(text: 'admin@acme.local');
-  final passwordCtrl = TextEditingController(text: 'password123');
-  late final baseUrlCtrl = TextEditingController(text: widget.api.baseUrl);
+  final emailCtrl = TextEditingController();
+  final passwordCtrl = TextEditingController();
   String? error;
   bool loading = false;
 
@@ -22,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     emailCtrl.dispose();
     passwordCtrl.dispose();
-    baseUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -32,11 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
       error = null;
     });
     try {
-      final client = ApiClient(baseUrl: baseUrlCtrl.text.trim(), token: null);
-      final result = await client.login(emailCtrl.text.trim(), passwordCtrl.text);
+      final result = await widget.api.login(emailCtrl.text.trim(), passwordCtrl.text);
       final token = result['token']?.toString();
       if (token == null || token.isEmpty) throw Exception('No session token returned');
-      await widget.onLoggedIn(token, baseUrlCtrl.text.trim());
+      await widget.onLoggedIn(token);
     } catch (e) {
       setState(() => error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
@@ -54,7 +51,14 @@ class _LoginScreenState extends State<LoginScreen> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text('AI SCRUM MASTER', style: TextStyle(color: Theme.of(context).colorScheme.primary, letterSpacing: 1.4, fontSize: 12)),
+                Text(
+                  'AI SCRUM MASTER',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    letterSpacing: 1.4,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 const Text('Sign in', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
@@ -71,18 +75,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Text(error!, style: const TextStyle(color: Color(0xFF9F1239))),
                   ),
-                TextField(controller: baseUrlCtrl, decoration: const InputDecoration(labelText: 'API base URL')),
+                TextField(
+                  controller: emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email, AutofillHints.username],
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: 12),
-                TextField(controller: passwordCtrl, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+                TextField(
+                  controller: passwordCtrl,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.password],
+                  onSubmitted: (_) {
+                    if (!loading) submit();
+                  },
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: loading ? null : submit,
                   child: Text(loading ? 'Signing in…' : 'Continue'),
                 ),
-                const SizedBox(height: 12),
-                Text('Emulator tip: use http://10.0.2.2:3000 to reach host localhost.', style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade500)),
               ],
             ),
           ),

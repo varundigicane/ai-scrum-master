@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { RichTextEditor } from "@/components/RichTextEditor";
 
 export function ProposalEditor({
   proposalId,
@@ -13,21 +14,11 @@ export function ProposalEditor({
   bodyHtml: string;
   saveAction: (formData: FormData) => Promise<void>;
 }) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [html, setHtml] = useState(bodyHtml);
   const [name, setName] = useState(title);
-
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== bodyHtml) {
-      editorRef.current.innerHTML = bodyHtml;
-      setHtml(bodyHtml);
-    }
-  }, [bodyHtml]);
 
   return (
     <form action={saveAction} className="space-y-3">
       <input type="hidden" name="proposalId" value={proposalId} />
-      <input type="hidden" name="bodyHtml" value={html} />
       <div>
         <label className="label" htmlFor="proposal-title">
           Proposal title
@@ -43,31 +34,12 @@ export function ProposalEditor({
       </div>
       <div>
         <label className="label">Proposal body (rich text)</label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          <button type="button" className="btn-secondary btn text-xs" onClick={() => document.execCommand("bold")}>
-            Bold
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn text-xs"
-            onClick={() => document.execCommand("insertUnorderedList")}
-          >
-            List
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn text-xs"
-            onClick={() => document.execCommand("formatBlock", false, "h2")}
-          >
-            Heading
-          </button>
-        </div>
-        <div
-          ref={editorRef}
-          className="input min-h-56"
-          contentEditable
-          suppressContentEditableWarning
-          onInput={(e) => setHtml((e.target as HTMLDivElement).innerHTML)}
+        <RichTextEditor
+          name="bodyHtml"
+          initialHtml={bodyHtml}
+          placeholder="Edit the software proposal…"
+          minHeightClass="min-h-56"
+          required
         />
       </div>
       <button className="btn" type="submit">

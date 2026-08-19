@@ -2,7 +2,8 @@
 
 | Document | Description |
 |----------|-------------|
-| **[End User Guide (Word)](./AI_Scrum_Master_End_User_Guide.docx)** | Full product walkthrough for end users (Microsoft Word) |
+| **[End User Guide (Word)](./AI_Scrum_Master_End_User_Guide_updated.docx)** | Full product walkthrough for end users (Microsoft Word; latest) |
+| [End User Guide (Word, previous copy)](./AI_Scrum_Master_End_User_Guide.docx) | Prior Word file if still open/locked locally |
 | [End User Guide (Markdown)](./END_USER_GUIDE.md) | Same guide as editable Markdown source |
 | [Functional Requirements (FRD)](./FRD.md) | Formal functional requirements, business rules, acceptance criteria |
 | [Architecture](./ARCHITECTURE.md) | System design, components, data model, flows, security |

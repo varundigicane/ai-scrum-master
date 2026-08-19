@@ -16,12 +16,18 @@ function revalidateMeeting(id?: string) {
   if (id) revalidatePath(`/dashboard/meeting-notes/${id}`);
 }
 
+function notesBody(value: FormDataEntryValue | null): string {
+  const raw = String(value ?? "").trim();
+  const text = raw.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  return text ? raw : "";
+}
+
 export async function createMeetingNote(formData: FormData): Promise<ActionResult<{ id: string }>> {
   try {
     const session = await assertFeature("meeting_notes");
     const title = String(formData.get("title") ?? "").trim();
     const attendees = String(formData.get("attendees") ?? "").trim();
-    const rawNotes = String(formData.get("rawNotes") ?? "").trim();
+    const rawNotes = notesBody(formData.get("rawNotes"));
     if (!title || !rawNotes) {
       return { ok: false, error: "Title and notes are required." };
     }
@@ -53,12 +59,18 @@ export async function updateMeetingNote(formData: FormData): Promise<ActionResul
     });
     if (!note) return { ok: false, error: "Meeting note not found." };
 
+    const title = String(formData.get("title") ?? note.title).trim();
+    const rawNotes = notesBody(formData.get("rawNotes")) || note.rawNotes;
+    if (!title || !notesBody(rawNotes)) {
+      return { ok: false, error: "Title and notes are required." };
+    }
+
     await prisma.meetingNote.update({
       where: { id },
       data: {
-        title: String(formData.get("title") ?? note.title).trim(),
+        title,
         attendees: String(formData.get("attendees") ?? note.attendees).trim(),
-        rawNotes: String(formData.get("rawNotes") ?? note.rawNotes).trim(),
+        rawNotes,
       },
     });
     revalidateMeeting(id);
