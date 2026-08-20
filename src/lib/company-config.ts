@@ -183,6 +183,7 @@ export function settingsPublicView(company: NonNullable<Awaited<ReturnType<typeo
     googleClientEmail: company.googleClientEmail ?? "",
     googleCalendarId: company.googleCalendarId ?? "",
     graphMeetingUserId: company.graphMeetingUserId ?? "",
+    meetingNoteIdPrefix: company.meetingNoteIdPrefix ?? "",
     configured: {
       gmailPrivateKey: Boolean(company.gmailPrivateKey),
       gmailClientSecret: Boolean(company.gmailClientSecret),

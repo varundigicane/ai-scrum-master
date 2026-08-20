@@ -75,6 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'weeklyReportTime',
         'weeklyReportDay',
         'deadlineWarnDays',
+        'meetingNoteIdPrefix',
         'emailFrom',
         'gmailUserEmail',
         'gmailClientEmail',
@@ -252,6 +253,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         field('weeklyReportTime', 'Weekly report time'),
         field('weeklyReportDay', 'Weekly report day (0–6)'),
         field('deadlineWarnDays', 'Deadline warn days'),
+        field('meetingNoteIdPrefix', 'Note ID prefix (ACME → ACME-1)'),
         if (canEdit)
           saveBtn('Save delivery', () => _savePanel('delivery', {
                 'timezone': c('timezone').text,
@@ -260,6 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'weeklyReportTime': c('weeklyReportTime').text,
                 'weeklyReportDay': c('weeklyReportDay').text,
                 'deadlineWarnDays': c('deadlineWarnDays').text,
+                'meetingNoteIdPrefix': c('meetingNoteIdPrefix').text,
               })),
         const Divider(height: 28),
         panelTitle('Mail'),

@@ -117,6 +117,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
         title: titleCtrl.text.trim(),
         attendees: attendeesCtrl.text.trim(),
         rawNotes: editableToHtmlish(notesController.text),
+        noteStatus: note?['noteStatus']?.toString(),
       ),
     );
   }
@@ -373,6 +374,24 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
               const SizedBox(height: 12),
               TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
               const SizedBox(height: 12),
+              Text(
+                'ID: ${note!['functionalId'] ?? '—'} · Status: ${note!['noteStatus'] ?? 'todo'}\n'
+                'Created: ${note!['createdAt']} · Updated: ${note!['updatedAt']}',
+                style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: (note!['noteStatus']?.toString() ?? 'todo'),
+                decoration: const InputDecoration(labelText: 'Status'),
+                items: const [
+                  DropdownMenuItem(value: 'todo', child: Text('ToDo')),
+                  DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                  DropdownMenuItem(value: 'blocker', child: Text('Blocker')),
+                  DropdownMenuItem(value: 'done', child: Text('Done')),
+                ],
+                onChanged: (v) => note!['noteStatus'] = v,
+              ),
+              const SizedBox(height: 12),
               TextField(controller: attendeesCtrl, decoration: const InputDecoration(labelText: 'Attendees')),
               const SizedBox(height: 12),
               Row(
@@ -384,6 +403,73 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
               RichNotesField(controller: notesController),
               const SizedBox(height: 8),
               ElevatedButton(onPressed: busy ? null : _saveNotes, child: const Text('Save notes')),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final body = TextEditingController();
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Add comment'),
+                            content: TextField(
+                              controller: body,
+                              maxLines: 3,
+                              decoration: const InputDecoration(hintText: 'Comment (@Name to mention)'),
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Post')),
+                            ],
+                          ),
+                        );
+                        if (ok == true) {
+                          await _run(() => widget.api.meetingAction(widget.noteId, 'comment', {'body': body.text}));
+                        }
+                        body.dispose();
+                      },
+                child: const Text('Add comment'),
+              ),
+              OutlinedButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final due = TextEditingController();
+                        final noteText = TextEditingController();
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Add reminder'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextField(
+                                  controller: due,
+                                  decoration: const InputDecoration(labelText: 'Due (ISO e.g. 2026-08-21T10:00:00)'),
+                                ),
+                                TextField(controller: noteText, decoration: const InputDecoration(labelText: 'Note')),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+                            ],
+                          ),
+                        );
+                        if (ok == true) {
+                          await _run(
+                            () => widget.api.meetingAction(widget.noteId, 'reminder', {
+                              'dueAt': due.text.trim(),
+                              'note': noteText.text.trim(),
+                            }),
+                          );
+                        }
+                        due.dispose();
+                        noteText.dispose();
+                      },
+                child: const Text('Add reminder'),
+              ),
               const Divider(height: 32),
               Wrap(
                 spacing: 8,

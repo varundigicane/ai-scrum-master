@@ -102,6 +102,16 @@ export default async function SettingsPage() {
             disabled={!canEdit}
           />
         </div>
+        <div>
+          <label className="label">Meeting note ID prefix (e.g. ACME → ACME-1)</label>
+          <input
+            className="input w-full"
+            name="meetingNoteIdPrefix"
+            defaultValue={company.meetingNoteIdPrefix ?? ""}
+            placeholder="Blank = first 4 letters of company name"
+            disabled={!canEdit}
+          />
+        </div>
         {canEdit ? (
           <button className="btn" type="submit">
             Save delivery

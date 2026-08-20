@@ -11,7 +11,15 @@ import {
   provisionMeetingLinks,
 } from "@/lib/meeting-providers";
 import { hasFeature } from "@/lib/permissions";
-import type { RequirementKind, TaskKind } from "@/generated/prisma/enums";
+import type { MeetingNoteStatus, RequirementKind, TaskKind } from "@/generated/prisma/enums";
+import {
+  addNoteComment,
+  addNoteReminder,
+  getMeetingNoteDetail,
+  linkNotesByHeading,
+  noteToMarkdown,
+  updateMeetingNoteFields,
+} from "@/lib/meeting-note-crm";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -19,16 +27,32 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const payload = await requireMobileFeature(req, "meeting_notes");
     const { id } = await ctx.params;
-    const note = await prisma.meetingNote.findFirst({
-      where: { id, companyId: payload.companyId },
-      include: {
-        summary: true,
-        proposal: { include: { requirements: { orderBy: { sortOrder: "asc" } } } },
-        events: { orderBy: { startsAt: "asc" } },
-      },
-    });
+    const url = new URL(req.url);
+    if (url.searchParams.get("format") === "md") {
+      const note = await getMeetingNoteDetail(payload.companyId, id);
+      if (!note) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
+      const md = noteToMarkdown(note);
+      return new NextResponse(md, {
+        headers: {
+          "Content-Type": "text/markdown; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${note.functionalId ?? note.id}.md"`,
+        },
+      });
+    }
+    const note = await getMeetingNoteDetail(payload.companyId, id);
     if (!note) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
-    return NextResponse.json({ note });
+    const resources = await prisma.resource.findMany({
+      where: { companyId: payload.companyId, active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    });
+    const otherNotes = await prisma.meetingNote.findMany({
+      where: { companyId: payload.companyId, NOT: { id } },
+      select: { id: true, title: true, functionalId: true },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+    });
+    return NextResponse.json({ note, resources, otherNotes });
   } catch (error) {
     return mobileErrorResponse(error);
   }
@@ -42,25 +66,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
       title?: string;
       attendees?: string;
       rawNotes?: string;
+      noteStatus?: MeetingNoteStatus;
+      resourceIds?: string[];
     };
-    const note = await prisma.meetingNote.findFirst({
-      where: { id, companyId: payload.companyId },
-    });
-    if (!note) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
-
-    const title = String(body.title ?? note.title).trim();
-    const rawNotes = String(body.rawNotes ?? note.rawNotes).trim();
-    if (!title || !rawNotes) {
-      return NextResponse.json({ error: "Title and notes are required." }, { status: 400 });
-    }
-
-    const updated = await prisma.meetingNote.update({
-      where: { id },
-      data: {
-        title,
-        attendees: String(body.attendees ?? note.attendees).trim(),
-        rawNotes,
-      },
+    const updated = await updateMeetingNoteFields(payload.companyId, id, {
+      title: body.title,
+      attendees: body.attendees,
+      rawNotes: body.rawNotes,
+      noteStatus: body.noteStatus,
+      resourceIds: body.resourceIds,
     });
     return NextResponse.json({ note: updated, message: "Meeting note updated." });
   } catch (error) {
@@ -318,6 +332,47 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
         event,
         message: `Meeting scheduled.${provisioned.warnings.length ? ` ${provisioned.warnings.join(" ")}` : ""}`,
       });
+    }
+
+    if (action === "comment") {
+      const comment = await addNoteComment({
+        companyId: payload.companyId,
+        noteId: id,
+        authorUserId: payload.sub,
+        body: String(body.body ?? ""),
+      });
+      return NextResponse.json({ comment, message: "Comment added." });
+    }
+
+    if (action === "reminder") {
+      const dueAt = new Date(String(body.dueAt ?? ""));
+      if (Number.isNaN(dueAt.getTime())) {
+        return NextResponse.json({ error: "Enter a valid due date/time." }, { status: 400 });
+      }
+      const reminder = await addNoteReminder({
+        companyId: payload.companyId,
+        noteId: id,
+        createdById: payload.sub,
+        dueAt,
+        note: String(body.note ?? ""),
+      });
+      return NextResponse.json({ reminder, message: "Reminder added." });
+    }
+
+    if (action === "link") {
+      const link = await linkNotesByHeading({
+        companyId: payload.companyId,
+        fromNoteId: id,
+        toNoteId: String(body.toNoteId ?? ""),
+        heading: String(body.heading ?? ""),
+      });
+      return NextResponse.json({ link, message: "Note linked." });
+    }
+
+    if (action === "export-md") {
+      const full = await getMeetingNoteDetail(payload.companyId, id);
+      if (!full) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
+      return NextResponse.json({ markdown: noteToMarkdown(full) });
     }
 
     return NextResponse.json({ error: "Unknown action." }, { status: 400 });

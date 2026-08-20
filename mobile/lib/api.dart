@@ -73,8 +73,13 @@ class ApiClient {
     return _json(res, fallback: 'Session expired');
   }
 
-  Future<List<dynamic>> meetingNotes() async {
-    final res = await _send(() => http.get(_u('/api/mobile/meeting-notes'), headers: _headers));
+  Future<List<dynamic>> meetingNotes({String q = '', String status = ''}) async {
+    final query = <String, String>{};
+    if (q.isNotEmpty) query['q'] = q;
+    if (status.isNotEmpty) query['status'] = status;
+    final res = await _send(
+      () => http.get(_u('/api/mobile/meeting-notes', query.isEmpty ? null : query), headers: _headers),
+    );
     final body = await _json(res, fallback: 'Could not load notes');
     return (body['notes'] as List<dynamic>?) ?? [];
   }
@@ -83,12 +88,20 @@ class ApiClient {
     required String title,
     required String rawNotes,
     String attendees = '',
+    String? templateKey,
+    String? noteStatus,
   }) async {
     final res = await _send(
       () => http.post(
         _u('/api/mobile/meeting-notes'),
         headers: _headers,
-        body: jsonEncode({'title': title, 'rawNotes': rawNotes, 'attendees': attendees}),
+        body: jsonEncode({
+          'title': title,
+          'rawNotes': rawNotes,
+          'attendees': attendees,
+          if (templateKey != null && templateKey.isNotEmpty) 'templateKey': templateKey,
+          if (noteStatus != null) 'noteStatus': noteStatus,
+        }),
       ),
     );
     return _json(res, fallback: 'Could not save note');
@@ -104,12 +117,20 @@ class ApiClient {
     required String title,
     required String rawNotes,
     String attendees = '',
+    String? noteStatus,
+    List<String>? resourceIds,
   }) async {
     final res = await _send(
       () => http.patch(
         _u('/api/mobile/meeting-notes/$id'),
         headers: _headers,
-        body: jsonEncode({'title': title, 'rawNotes': rawNotes, 'attendees': attendees}),
+        body: jsonEncode({
+          'title': title,
+          'rawNotes': rawNotes,
+          'attendees': attendees,
+          if (noteStatus != null) 'noteStatus': noteStatus,
+          if (resourceIds != null) 'resourceIds': resourceIds,
+        }),
       ),
     );
     return _json(res, fallback: 'Could not update note');
@@ -222,5 +243,12 @@ class ApiClient {
     if (projectId != null && projectId.isNotEmpty) query['projectId'] = projectId;
     final res = await _send(() => http.get(_u('/api/mobile/menu-data', query), headers: _headers));
     return _json(res, fallback: 'Could not load data');
+  }
+
+  Future<Map<String, dynamic>> mutate(Map<String, dynamic> body) async {
+    final res = await _send(
+      () => http.post(_u('/api/mobile/mutate'), headers: _headers, body: jsonEncode(body)),
+    );
+    return _json(res, fallback: 'Could not save');
   }
 }

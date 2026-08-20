@@ -17,6 +17,8 @@ import {
   updateMeetingNote,
 } from "@/lib/meeting-actions";
 import { getMeetingProvidersStatus } from "@/lib/meeting-providers";
+import { MeetingNoteCrmPanel } from "@/components/MeetingNoteCrmPanel";
+import { getMeetingNoteDetail } from "@/lib/meeting-note-crm";
 
 export default async function MeetingNoteDetailPage({
   params,
@@ -31,20 +33,24 @@ export default async function MeetingNoteDetailPage({
   const { id } = await params;
   const sp = (await searchParams) ?? {};
 
-  const note = await prisma.meetingNote.findFirst({
-    where: { id, companyId: session.user.companyId },
-    include: {
-      summary: true,
-      proposal: { include: { requirements: { orderBy: { sortOrder: "asc" } } } },
-      events: { orderBy: { startsAt: "asc" } },
-    },
-  });
+  const note = await getMeetingNoteDetail(session.user.companyId, id);
   if (!note) notFound();
 
   const projects = await prisma.project.findMany({
     where: { account: { companyId: session.user.companyId }, active: true },
     include: { account: true },
     orderBy: { name: "asc" },
+  });
+  const resources = await prisma.resource.findMany({
+    where: { companyId: session.user.companyId, active: true },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+  });
+  const otherNotes = await prisma.meetingNote.findMany({
+    where: { companyId: session.user.companyId, NOT: { id } },
+    select: { id: true, title: true, functionalId: true },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
   });
   const providers = await getMeetingProvidersStatus(session.user.companyId);
 
@@ -159,9 +165,14 @@ export default async function MeetingNoteDetailPage({
           <Link href="/dashboard/meeting-notes" className="text-sm text-sky-700 hover:underline">
             ← All meeting notes
           </Link>
-          <h1 className="text-2xl font-semibold mt-1">{note.title}</h1>
+          <h1 className="text-2xl font-semibold mt-1">
+            {note.functionalId ? (
+              <span className="font-mono text-base text-[var(--muted)] mr-2">{note.functionalId}</span>
+            ) : null}
+            {note.title}
+          </h1>
           <p className="text-sm text-[var(--muted)] mt-1">
-            Use the conversion pipeline below (notes → summary → proposal → FRs → backlog).
+            Created {note.createdAt.toLocaleString()} · Updated {note.updatedAt.toLocaleString()}
           </p>
         </div>
         {note.proposal ? (
@@ -183,6 +194,7 @@ export default async function MeetingNoteDetailPage({
       <section className="panel p-4 space-y-3" id="step-notes">
         <h2 className="font-semibold">1. Notes</h2>
         <form
+          id="note-main-form"
           action={async (fd) => {
             "use server";
             fd.set("id", id);
@@ -200,6 +212,20 @@ export default async function MeetingNoteDetailPage({
           </button>
         </form>
       </section>
+
+      <MeetingNoteCrmPanel
+        noteId={note.id}
+        functionalId={note.functionalId}
+        noteStatus={note.noteStatus}
+        createdAt={note.createdAt}
+        updatedAt={note.updatedAt}
+        assignedIds={note.assignments.map((a) => a.resourceId)}
+        resources={resources}
+        comments={note.comments}
+        reminders={note.reminders}
+        linksFrom={note.linksFrom}
+        otherNotes={otherNotes}
+      />
 
       <section className="panel p-4 space-y-3" id="step-summary">
         <div className="flex flex-wrap items-center justify-between gap-2">

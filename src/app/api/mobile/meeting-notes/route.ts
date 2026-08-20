@@ -1,64 +1,61 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getBearerToken, verifyMobileToken } from "@/lib/mobile-auth";
-import { hasFeature } from "@/lib/permissions";
-import { toFriendlyError } from "@/lib/friendly-error";
-
-async function requireMobileMeeting(req: Request) {
-  const token = getBearerToken(req);
-  if (!token) throw new Error("Sign in required.");
-  const payload = await verifyMobileToken(token);
-  const ok = await hasFeature(payload.companyId, payload.role, "meeting_notes");
-  if (!ok) throw new Error("You do not have permission to do that. Ask a Company Admin to update Feature access.");
-  return payload;
-}
+import { requireMobileFeature, mobileErrorResponse } from "@/lib/mobile-api";
+import {
+  createMeetingNoteRecord,
+  searchMeetingNotes,
+  invalidateNotesCache,
+} from "@/lib/meeting-note-crm";
+import { NOTE_TEMPLATES } from "@/lib/meeting-note-templates";
+import { cacheGet, cacheSet, companyCacheKey } from "@/lib/memory-cache";
 
 export async function GET(req: Request) {
   try {
-    const payload = await requireMobileMeeting(req);
-    const notes = await prisma.meetingNote.findMany({
-      where: { companyId: payload.companyId },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      select: {
-        id: true,
-        title: true,
-        attendees: true,
-        updatedAt: true,
-        summary: { select: { id: true } },
-        proposal: { select: { id: true } },
-      },
-    });
-    return NextResponse.json({ notes });
+    const payload = await requireMobileFeature(req, "meeting_notes");
+    const url = new URL(req.url);
+    const q = url.searchParams.get("q") ?? "";
+    const status = url.searchParams.get("status") ?? "";
+    const cacheKey = companyCacheKey(payload.companyId, "meeting-notes", `${q}:${status}`);
+    const cached = cacheGet<{ notes: unknown }>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
+    let notes = await searchMeetingNotes(payload.companyId, q);
+    if (status) notes = notes.filter((n) => n.noteStatus === status);
+    const body = { notes, templates: NOTE_TEMPLATES };
+    cacheSet(cacheKey, body);
+    return NextResponse.json(body);
   } catch (error) {
-    const msg = toFriendlyError(error);
-    const status = msg.includes("Sign in") ? 401 : msg.includes("permission") ? 403 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return mobileErrorResponse(error);
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const payload = await requireMobileMeeting(req);
-    const body = (await req.json()) as { title?: string; attendees?: string; rawNotes?: string };
-    const title = String(body.title ?? "").trim();
-    const rawNotes = String(body.rawNotes ?? "").trim();
-    if (!title || !rawNotes) {
-      return NextResponse.json({ error: "Title and notes are required." }, { status: 400 });
-    }
-    const note = await prisma.meetingNote.create({
-      data: {
-        companyId: payload.companyId,
-        createdById: payload.sub,
-        title,
-        attendees: String(body.attendees ?? ""),
-        rawNotes,
-      },
+    const payload = await requireMobileFeature(req, "meeting_notes");
+    const body = (await req.json()) as {
+      title?: string;
+      attendees?: string;
+      rawNotes?: string;
+      templateKey?: string;
+      noteStatus?: string;
+    };
+    const note = await createMeetingNoteRecord({
+      companyId: payload.companyId,
+      createdById: payload.sub,
+      title: String(body.title ?? "").trim(),
+      attendees: String(body.attendees ?? ""),
+      rawNotes: String(body.rawNotes ?? "").trim(),
+      templateKey: body.templateKey ?? null,
+      noteStatus:
+        body.noteStatus === "in_progress" ||
+        body.noteStatus === "blocker" ||
+        body.noteStatus === "done" ||
+        body.noteStatus === "todo"
+          ? body.noteStatus
+          : "todo",
     });
+    invalidateNotesCache(payload.companyId);
     return NextResponse.json({ note });
   } catch (error) {
-    const msg = toFriendlyError(error);
-    const status = msg.includes("Sign in") ? 401 : msg.includes("permission") ? 403 : 500;
-    return NextResponse.json({ error: msg }, { status });
+    return mobileErrorResponse(error);
   }
 }

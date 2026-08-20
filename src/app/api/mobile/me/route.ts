@@ -4,12 +4,17 @@ import { getEnabledFeatures } from "@/lib/permissions";
 import { FEATURE_CATALOG, ROLE_LABELS } from "@/lib/roles";
 import { toFriendlyError } from "@/lib/friendly-error";
 import { prisma } from "@/lib/prisma";
+import { cacheGet, cacheSet, companyCacheKey } from "@/lib/memory-cache";
 
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
     if (!token) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     const payload = await verifyMobileToken(token);
+
+    const cacheKey = companyCacheKey(payload.companyId, "me", `${payload.sub}:${payload.role}`);
+    const cached = cacheGet<Record<string, unknown>>(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
     const enabled = await getEnabledFeatures(payload.companyId, payload.role);
     const menus = FEATURE_CATALOG.filter((f) => f.kind === "menu" && enabled.has(f.key)).map((f) => ({
@@ -34,7 +39,7 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    return NextResponse.json({
+    const body = {
       user: {
         id: payload.sub,
         email: payload.email,
@@ -45,7 +50,9 @@ export async function GET(req: Request) {
       },
       menus,
       kpis: { accounts, projects, resources, pendingStatus, overdueTasks },
-    });
+    };
+    cacheSet(cacheKey, body, 30_000);
+    return NextResponse.json(body);
   } catch (error) {
     return NextResponse.json({ error: toFriendlyError(error, "Session expired. Sign in again.") }, { status: 401 });
   }

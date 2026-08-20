@@ -14,6 +14,8 @@ import {
   composeMeetingLocation,
   provisionMeetingLinks,
 } from "@/lib/meeting-providers";
+import { createMeetingNoteRecord, updateMeetingNoteFields } from "@/lib/meeting-note-crm";
+import type { MeetingNoteStatus } from "@/generated/prisma/enums";
 
 function revalidateMeeting(id?: string) {
   revalidatePath("/dashboard/meeting-notes");
@@ -32,20 +34,23 @@ export async function createMeetingNote(formData: FormData): Promise<ActionResul
     const title = String(formData.get("title") ?? "").trim();
     const attendees = String(formData.get("attendees") ?? "").trim();
     const rawNotes = notesBody(formData.get("rawNotes"));
-    if (!title || !rawNotes) {
+    const templateKey = String(formData.get("templateKey") ?? "").trim() || null;
+    if (!title && !templateKey) {
+      return { ok: false, error: "Title and notes are required." };
+    }
+    if (!rawNotes && !templateKey) {
       return { ok: false, error: "Title and notes are required." };
     }
 
-    const note = await prisma.meetingNote.create({
-      data: {
-        companyId: session.user.companyId,
-        createdById: session.user.id,
-        title,
-        attendees,
-        rawNotes,
-        accountId: String(formData.get("accountId") ?? "") || null,
-        projectId: String(formData.get("projectId") ?? "") || null,
-      },
+    const note = await createMeetingNoteRecord({
+      companyId: session.user.companyId,
+      createdById: session.user.id,
+      title,
+      attendees,
+      rawNotes,
+      accountId: String(formData.get("accountId") ?? "") || null,
+      projectId: String(formData.get("projectId") ?? "") || null,
+      templateKey,
     });
     revalidateMeeting(note.id);
     return { ok: true, data: { id: note.id }, message: "Meeting note saved." };
@@ -69,13 +74,18 @@ export async function updateMeetingNote(formData: FormData): Promise<ActionResul
       return { ok: false, error: "Title and notes are required." };
     }
 
-    await prisma.meetingNote.update({
-      where: { id },
-      data: {
-        title,
-        attendees: String(formData.get("attendees") ?? note.attendees).trim(),
-        rawNotes,
-      },
+    const statusRaw = String(formData.get("noteStatus") ?? note.noteStatus);
+    const noteStatus = (["todo", "in_progress", "blocker", "done"].includes(statusRaw)
+      ? statusRaw
+      : note.noteStatus) as MeetingNoteStatus;
+    const resourceIds = formData.getAll("resourceIds").map((v) => String(v));
+
+    await updateMeetingNoteFields(session.user.companyId, id, {
+      title,
+      attendees: String(formData.get("attendees") ?? note.attendees).trim(),
+      rawNotes,
+      noteStatus,
+      resourceIds: formData.has("resourceIds") ? resourceIds : undefined,
     });
     revalidateMeeting(id);
     return { ok: true, message: "Meeting note updated." };
@@ -394,6 +404,63 @@ export async function createMeetingEvent(formData: FormData): Promise<ActionResu
       ok: true,
       message: `Meeting scheduled. Use Download ICS on the event list.${warn}`,
     };
+  } catch (error) {
+    return { ok: false, error: toFriendlyError(error) };
+  }
+}
+
+export async function addMeetingNoteComment(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await assertFeature("meeting_notes");
+    const { addNoteComment } = await import("@/lib/meeting-note-crm");
+    const noteId = String(formData.get("noteId") ?? "");
+    await addNoteComment({
+      companyId: session.user.companyId,
+      noteId,
+      authorUserId: session.user.id,
+      body: String(formData.get("body") ?? ""),
+    });
+    revalidateMeeting(noteId);
+    return { ok: true, message: "Comment added." };
+  } catch (error) {
+    return { ok: false, error: toFriendlyError(error) };
+  }
+}
+
+export async function addMeetingNoteReminder(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await assertFeature("meeting_notes");
+    const { addNoteReminder } = await import("@/lib/meeting-note-crm");
+    const noteId = String(formData.get("noteId") ?? "");
+    const dueAt = new Date(String(formData.get("dueAt") ?? ""));
+    if (Number.isNaN(dueAt.getTime())) return { ok: false, error: "Enter a valid due date/time." };
+    await addNoteReminder({
+      companyId: session.user.companyId,
+      noteId,
+      createdById: session.user.id,
+      dueAt,
+      note: String(formData.get("note") ?? ""),
+    });
+    revalidateMeeting(noteId);
+    return { ok: true, message: "Reminder added." };
+  } catch (error) {
+    return { ok: false, error: toFriendlyError(error) };
+  }
+}
+
+export async function linkMeetingNote(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await assertFeature("meeting_notes");
+    const { linkNotesByHeading } = await import("@/lib/meeting-note-crm");
+    const fromNoteId = String(formData.get("fromNoteId") ?? "");
+    await linkNotesByHeading({
+      companyId: session.user.companyId,
+      fromNoteId,
+      toNoteId: String(formData.get("toNoteId") ?? ""),
+      heading: String(formData.get("heading") ?? ""),
+    });
+    revalidateMeeting(fromNoteId);
+    return { ok: true, message: "Note linked." };
   } catch (error) {
     return { ok: false, error: toFriendlyError(error) };
   }

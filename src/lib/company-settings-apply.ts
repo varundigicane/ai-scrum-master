@@ -109,6 +109,7 @@ export async function applyCompanyAppSettings(companyId: string, patch: FormData
     setRequiredStr("weeklyReportTime", company.weeklyReportTime);
     setNum("weeklyReportDay");
     setRequiredStr("deadlineWarnDays", company.deadlineWarnDays);
+    setStr("meetingNoteIdPrefix");
   }
 
   if (inPanel("mail")) {

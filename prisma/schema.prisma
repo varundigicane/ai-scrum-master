@@ -144,6 +144,10 @@ model Company {
   googleCalendarId     String?
   graphMeetingUserId   String?
 
+  /// Meeting note functional IDs: PREFIX-1, PREFIX-2, … (e.g. ACME-1)
+  meetingNoteIdPrefix  String?
+  meetingNoteSeq       Int      @default(0)
+
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -175,6 +179,8 @@ model User {
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   resource     Resource?
   meetingNotes MeetingNote[]
+  noteComments MeetingNoteComment[]
+  noteReminders MeetingNoteReminder[]
 
   @@index([companyId])
 }
@@ -268,6 +274,7 @@ model Resource {
   statusReqs  StatusRequest[]
   dailyStatus DailyStatus[]
   extraWorkingDays ExtraWorkingDay[]
+  noteAssignments MeetingNoteAssignment[]
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -757,27 +764,119 @@ model TeamsInteraction {
   @@index([companyId, createdAt])
 }
 
+enum MeetingNoteStatus {
+  todo
+  in_progress
+  blocker
+  done
+}
+
 /// Business discussion notes (multi-tenant). Additive — does not alter existing delivery data.
 model MeetingNote {
-  id          String   @id @default(cuid())
-  companyId   String
-  createdById String
-  accountId   String?
-  projectId   String?
-  title       String
-  attendees   String   @default("")
-  rawNotes    String   @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String            @id @default(cuid())
+  companyId    String
+  createdById  String
+  accountId    String?
+  projectId    String?
+  /// Company-scoped human id e.g. ACME-1
+  functionalId String?
+  noteStatus   MeetingNoteStatus @default(todo)
+  /// standup | discovery | retrospective | null
+  templateKey  String?
+  title        String
+  attendees    String            @default("")
+  rawNotes     String            @db.Text
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
-  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  summary   MeetingSummary?
-  proposal  SoftwareProposal?
-  events    MeetingEvent[]
+  company     Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User                     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  summary     MeetingSummary?
+  proposal    SoftwareProposal?
+  events      MeetingEvent[]
+  linksFrom   MeetingNoteLink[]        @relation("NoteLinkFrom")
+  linksTo     MeetingNoteLink[]        @relation("NoteLinkTo")
+  reminders   MeetingNoteReminder[]
+  assignments MeetingNoteAssignment[]
+  comments    MeetingNoteComment[]
 
+  @@unique([companyId, functionalId])
   @@index([companyId, createdAt])
+  @@index([companyId, noteStatus])
   @@index([createdById])
+}
+
+model MeetingNoteLink {
+  id         String   @id @default(cuid())
+  fromNoteId String
+  toNoteId   String
+  heading    String   @default("")
+  createdAt  DateTime @default(now())
+
+  fromNote MeetingNote @relation("NoteLinkFrom", fields: [fromNoteId], references: [id], onDelete: Cascade)
+  toNote   MeetingNote @relation("NoteLinkTo", fields: [toNoteId], references: [id], onDelete: Cascade)
+
+  @@unique([fromNoteId, toNoteId, heading])
+  @@index([toNoteId])
+}
+
+model MeetingNoteReminder {
+  id          String    @id @default(cuid())
+  noteId      String
+  createdById String
+  dueAt       DateTime
+  note        String    @default("")
+  done        Boolean   @default(false)
+  notifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  meetingNote MeetingNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  createdBy   User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([noteId, dueAt])
+  @@index([dueAt, done])
+}
+
+model MeetingNoteAssignment {
+  id         String   @id @default(cuid())
+  noteId     String
+  resourceId String
+  createdAt  DateTime @default(now())
+
+  meetingNote MeetingNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  resource    Resource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, resourceId])
+  @@index([resourceId])
+}
+
+model MeetingNoteComment {
+  id           String   @id @default(cuid())
+  noteId       String
+  authorUserId String
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  meetingNote MeetingNote                   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  author      User                          @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  attachments MeetingNoteCommentAttachment[]
+
+  @@index([noteId, createdAt])
+}
+
+model MeetingNoteCommentAttachment {
+  id         String   @id @default(cuid())
+  commentId  String
+  /// Relative path under uploads/ or data URL key
+  storageKey String
+  mimeType   String
+  byteSize   Int
+  createdAt  DateTime @default(now())
+
+  comment MeetingNoteComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
 }
 
 model MeetingSummary {
