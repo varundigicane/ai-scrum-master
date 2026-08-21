@@ -14,8 +14,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { ChartSlice, OverviewChartsData } from "@/lib/overview-charts";
-import { OVERVIEW_COLORS } from "@/lib/overview-charts";
+import type { ChartSlice, OverviewChartsData } from "@/lib/overview-palette";
+import { OVERVIEW_COLORS } from "@/lib/overview-palette";
 
 function sum(data: ChartSlice[]) {
   return data.reduce((a, d) => a + d.value, 0);
