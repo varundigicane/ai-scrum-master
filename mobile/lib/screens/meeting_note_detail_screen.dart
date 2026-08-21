@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
-import '../widgets/rich_notes_field.dart';
+import '../repository.dart';
+import '../widgets/quill_notes_editor.dart';
 import '../widgets/speech_mic_button.dart';
 
 class MeetingNoteDetailScreen extends StatefulWidget {
@@ -23,17 +25,17 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
   bool loading = true;
   bool busy = false;
 
-  late TextEditingController notesController;
+  late QuillController notesController;
+  late QuillController proposalController;
   late TextEditingController titleCtrl;
   late TextEditingController attendeesCtrl;
-  late TextEditingController proposalController;
   late TextEditingController proposalTitleCtrl;
 
   @override
   void initState() {
     super.initState();
-    notesController = TextEditingController();
-    proposalController = TextEditingController();
+    notesController = QuillController.basic();
+    proposalController = QuillController.basic();
     titleCtrl = TextEditingController();
     attendeesCtrl = TextEditingController();
     proposalTitleCtrl = TextEditingController();
@@ -56,26 +58,29 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
       error = null;
     });
     try {
-      final data = await widget.api.meetingNoteDetail(widget.noteId);
+      final data = await repo.meetingNoteDetail(widget.noteId);
       final n = data['note'] as Map<String, dynamic>;
-      final p = await widget.api.meetingProviders();
+      Map<String, dynamic> p = {};
+      try {
+        p = await repo.meetingProviders();
+      } catch (_) {}
       List<dynamic> projs = [];
       try {
-        projs = await widget.api.projects();
+        projs = await repo.projects();
       } catch (_) {}
 
       if (!mounted) return;
-      notesController.text = plainOrHtmlToEditable(n['rawNotes']?.toString());
+      notesController.document = quillDocumentFromHtml(n['rawNotes']?.toString());
       titleCtrl.text = n['title']?.toString() ?? '';
       attendeesCtrl.text = n['attendees']?.toString() ?? '';
 
       final proposal = n['proposal'] as Map<String, dynamic>?;
       if (proposal != null) {
         proposalTitleCtrl.text = proposal['title']?.toString() ?? '';
-        proposalController.text = plainOrHtmlToEditable(proposal['bodyHtml']?.toString());
+        proposalController.document = quillDocumentFromHtml(proposal['bodyHtml']?.toString());
       } else {
         proposalTitleCtrl.clear();
-        proposalController.clear();
+        proposalController.document = Document();
       }
 
       setState(() {
@@ -96,9 +101,8 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
     try {
       final res = await fn();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res['message']?.toString() ?? 'Done')),
-      );
+      final msg = res['queued'] == true ? 'Saved offline — will sync' : (res['message']?.toString() ?? 'Done');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -112,11 +116,11 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
 
   Future<void> _saveNotes() async {
     await _run(
-      () => widget.api.updateMeetingNote(
+      () => repo.updateMeetingNote(
         widget.noteId,
         title: titleCtrl.text.trim(),
         attendees: attendeesCtrl.text.trim(),
-        rawNotes: editableToHtmlish(notesController.text),
+        rawNotes: quillControllerToHtml(notesController),
         noteStatus: note?['noteStatus']?.toString(),
       ),
     );
@@ -273,7 +277,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
     final endsAt = '$day${'T'}${pad(endHour)}:${pad(endMinute)}:00';
 
     await _run(
-      () => widget.api.meetingAction(widget.noteId, 'events', {
+      () => repo.meetingAction(widget.noteId, 'events', {
         'title': title.text.trim(),
         'startsAt': startsAt,
         'endsAt': endsAt,
@@ -313,7 +317,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
       ),
     );
     if (ok != true || projectId == null) return;
-    await _run(() => widget.api.meetingAction(widget.noteId, 'push-backlog', {'projectId': projectId}));
+    await _run(() => repo.meetingAction(widget.noteId, 'push-backlog', {'projectId': projectId}));
   }
 
   @override
@@ -397,10 +401,10 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
               Row(
                 children: [
                   const Expanded(child: Text('Notes', style: TextStyle(fontWeight: FontWeight.w600))),
-                  SpeechMicButton(onText: (t) => appendPlainToNotes(notesController, t)),
+                  SpeechMicButton(onText: (t) => insertTextIntoQuill(notesController, t)),
                 ],
               ),
-              RichNotesField(controller: notesController),
+              QuillNotesEditor(controller: notesController, minHeight: 260),
               const SizedBox(height: 8),
               ElevatedButton(onPressed: busy ? null : _saveNotes, child: const Text('Save notes')),
               const SizedBox(height: 8),
@@ -425,7 +429,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                           ),
                         );
                         if (ok == true) {
-                          await _run(() => widget.api.meetingAction(widget.noteId, 'comment', {'body': body.text}));
+                          await _run(() => repo.meetingAction(widget.noteId, 'comment', {'body': body.text}));
                         }
                         body.dispose();
                       },
@@ -459,7 +463,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                         );
                         if (ok == true) {
                           await _run(
-                            () => widget.api.meetingAction(widget.noteId, 'reminder', {
+                            () => repo.meetingAction(widget.noteId, 'reminder', {
                               'dueAt': due.text.trim(),
                               'note': noteText.text.trim(),
                             }),
@@ -476,19 +480,19 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                 runSpacing: 8,
                 children: [
                   ElevatedButton(
-                    onPressed: busy ? null : () => _run(() => widget.api.meetingAction(widget.noteId, 'summary')),
+                    onPressed: busy ? null : () => _run(() => repo.meetingAction(widget.noteId, 'summary')),
                     child: const Text('Generate summary'),
                   ),
                   ElevatedButton(
                     onPressed: busy || summary == null
                         ? null
-                        : () => _run(() => widget.api.meetingAction(widget.noteId, 'proposal')),
+                        : () => _run(() => repo.meetingAction(widget.noteId, 'proposal')),
                     child: const Text('Create proposal'),
                   ),
                   ElevatedButton(
                     onPressed: busy || proposal == null
                         ? null
-                        : () => _run(() => widget.api.meetingAction(widget.noteId, 'frs')),
+                        : () => _run(() => repo.meetingAction(widget.noteId, 'frs')),
                     child: const Text('Generate FRs'),
                   ),
                   ElevatedButton(
@@ -508,14 +512,14 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                 const Text('Proposal', style: TextStyle(fontWeight: FontWeight.w600)),
                 TextField(controller: proposalTitleCtrl, decoration: const InputDecoration(labelText: 'Proposal title')),
                 const SizedBox(height: 8),
-                RichNotesField(controller: proposalController, minHeight: 120),
+                QuillNotesEditor(controller: proposalController, minHeight: 160),
                 ElevatedButton(
                   onPressed: busy
                       ? null
                       : () => _run(
-                            () => widget.api.meetingAction(widget.noteId, 'save-proposal', {
+                            () => repo.meetingAction(widget.noteId, 'save-proposal', {
                               'title': proposalTitleCtrl.text.trim(),
-                              'bodyHtml': editableToHtmlish(proposalController.text),
+                              'bodyHtml': quillControllerToHtml(proposalController),
                             }),
                           ),
                   child: const Text('Save proposal'),
@@ -543,6 +547,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                     ),
                     isThreeLine: true,
                     trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (e['googleMeetUrl'] != null)

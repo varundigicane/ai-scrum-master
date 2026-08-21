@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../repository.dart';
+import '../widgets/offline_banner.dart';
 import 'meeting_notes_screen.dart';
 import 'overview_screen.dart';
 import 'projects_screen.dart';
@@ -52,7 +54,7 @@ class _HomeShellState extends State<HomeShell> {
       error = null;
     });
     try {
-      final data = await widget.api.me();
+      final data = await repo.me();
       if (!mounted) return;
       setState(() => me = data);
     } catch (e) {
@@ -191,16 +193,23 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ),
       ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(error!, textAlign: TextAlign.center),
-                  ),
-                )
-              : body,
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: loading
+                ? const Center(child: CircularProgressIndicator())
+                : error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(error!, textAlign: TextAlign.center),
+                        ),
+                      )
+                    : body,
+          ),
+        ],
+      ),
     );
   }
 }

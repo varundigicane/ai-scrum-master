@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../repository.dart';
 
 class AgentScreen extends StatefulWidget {
   const AgentScreen({super.key, required this.api});
@@ -27,7 +28,7 @@ class _AgentScreenState extends State<AgentScreen> {
       error = null;
     });
     try {
-      final res = await widget.api.agentJobs();
+      final res = await repo.agentJobs();
       setState(() => data = res);
     } catch (e) {
       setState(() => error = e.toString().replaceFirst('Exception: ', ''));
@@ -39,7 +40,7 @@ class _AgentScreenState extends State<AgentScreen> {
   Future<void> _run(String job) async {
     setState(() => runningJob = job);
     try {
-      final res = await widget.api.runAgentJob(job);
+      final res = await repo.runAgentJob(job);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(res['message']?.toString() ?? 'Done')),

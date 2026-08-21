@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../repository.dart';
 
 class GtsScreen extends StatefulWidget {
   const GtsScreen({super.key, required this.api});
@@ -53,7 +54,7 @@ class _GtsScreenState extends State<GtsScreen> {
       error = null;
     });
     try {
-      final res = await widget.api.gts(accountId: accountId, year: year, month: month);
+      final res = await repo.gts(accountId: accountId, year: year, month: month);
       final report = res['report'] as Map<String, dynamic>?;
       projectNameCtrl.text = report?['projectName']?.toString() ?? '';
       pmCtrl.text = report?['projectManagers']?.toString() ?? '';
@@ -77,7 +78,7 @@ class _GtsScreenState extends State<GtsScreen> {
     }
     setState(() => busy = true);
     try {
-      final res = await widget.api.gtsAction({
+      final res = await repo.gtsAction({
         'action': 'generate',
         'accountId': accountId,
         'year': year,
@@ -102,7 +103,7 @@ class _GtsScreenState extends State<GtsScreen> {
     if (report == null) return;
     setState(() => busy = true);
     try {
-      final res = await widget.api.gtsAction({
+      final res = await repo.gtsAction({
         'action': 'save-header',
         'reportId': report['id'],
         'projectName': projectNameCtrl.text.trim(),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'config.dart';
+import 'repository.dart';
 import 'theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_shell.dart';
@@ -14,6 +16,8 @@ Future<void> main() async {
   // Drop any legacy saved base URL (e.g. 10.0.2.2) so devices always hit production.
   await prefs.remove('baseUrl');
   final token = prefs.getString('token');
+  final api = ApiClient(baseUrl: kApiBaseUrl, token: token);
+  await initRepository(api);
   runApp(AiScrumApp(initialToken: token));
 }
 
@@ -41,18 +45,23 @@ class _AiScrumAppState extends State<AiScrumApp> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', newToken);
     await prefs.remove('baseUrl');
+    final newApi = ApiClient(baseUrl: kApiBaseUrl, token: newToken);
+    await initRepository(newApi);
     setState(() {
       token = newToken;
-      api = ApiClient(baseUrl: kApiBaseUrl, token: newToken);
+      api = newApi;
     });
   }
 
   Future<void> onLogout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
+    await repo.clearOffline();
+    final newApi = ApiClient(baseUrl: kApiBaseUrl, token: null);
+    await initRepository(newApi);
     setState(() {
       token = null;
-      api = ApiClient(baseUrl: kApiBaseUrl, token: null);
+      api = newApi;
     });
   }
 
@@ -63,6 +72,7 @@ class _AiScrumAppState extends State<AiScrumApp> {
       debugShowCheckedModeBanner: false,
       theme: digicaneLightTheme,
       localizationsDelegates: const [
+        quill.FlutterQuillLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

@@ -152,6 +152,56 @@ export async function POST(req: Request) {
       return NextResponse.json({ report: refreshed, message: "GTS report generated." });
     }
 
+    if (action === "save-line") {
+      const b = body as Record<string, unknown>;
+      const reportId = String(b.reportId ?? "");
+      const report = await prisma.gtsMonthlyReport.findFirst({
+        where: { id: reportId, companyId: payload.companyId },
+      });
+      if (!report) return NextResponse.json({ error: "Report not found." }, { status: 404 });
+      const lineId = String(b.lineId ?? "");
+      const data = {
+        projectId: String(b.projectId ?? "").trim() || null,
+        subProjectName: String(b.subProjectName ?? "").trim(),
+        featureName: String(b.featureName ?? "").trim(),
+        uatDefects: Number(b.uatDefects ?? 0) || 0,
+        actualEffortHrs: Number(b.actualEffortHrs ?? 0) || 0,
+        remarks: String(b.remarks ?? "").trim() || null,
+      };
+      if (!data.subProjectName) {
+        return NextResponse.json({ error: "Sub-project name required." }, { status: 400 });
+      }
+      if (lineId) {
+        const existing = await prisma.gtsMonthlyLine.findFirst({ where: { id: lineId, reportId } });
+        if (!existing) return NextResponse.json({ error: "Line not found." }, { status: 404 });
+        await prisma.gtsMonthlyLine.update({ where: { id: lineId }, data });
+      } else {
+        const count = await prisma.gtsMonthlyLine.count({ where: { reportId } });
+        await prisma.gtsMonthlyLine.create({ data: { ...data, reportId, sortOrder: count + 1 } });
+      }
+      const updated = await prisma.gtsMonthlyReport.findUnique({
+        where: { id: reportId },
+        include: { lines: { orderBy: { sortOrder: "asc" } } },
+      });
+      return NextResponse.json({ report: updated, message: "GTS line saved." });
+    }
+
+    if (action === "delete-line") {
+      const b = body as Record<string, unknown>;
+      const reportId = String(b.reportId ?? "");
+      const lineId = String(b.lineId ?? "");
+      const line = await prisma.gtsMonthlyLine.findFirst({
+        where: { id: lineId, report: { id: reportId, companyId: payload.companyId } },
+      });
+      if (!line) return NextResponse.json({ error: "Line not found." }, { status: 404 });
+      await prisma.gtsMonthlyLine.delete({ where: { id: lineId } });
+      const updated = await prisma.gtsMonthlyReport.findUnique({
+        where: { id: reportId },
+        include: { lines: { orderBy: { sortOrder: "asc" } } },
+      });
+      return NextResponse.json({ report: updated, message: "GTS line deleted." });
+    }
+
     if (action === "save-header") {
       const reportId = String(body.reportId ?? "");
       const report = await prisma.gtsMonthlyReport.findFirst({

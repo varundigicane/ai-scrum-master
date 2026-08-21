@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../repository.dart';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key, required this.api});
@@ -43,7 +44,7 @@ class _BillingScreenState extends State<BillingScreen> {
       error = null;
     });
     try {
-      final res = await widget.api.billing(year: year, month: month);
+      final res = await repo.billing(year: year, month: month);
       final override = res['override'] as Map<String, dynamic>?;
       daysCtrl.text = override?['totalWorkingDays']?.toString() ?? '';
       noteCtrl.text = override?['note']?.toString() ?? '';
@@ -63,14 +64,15 @@ class _BillingScreenState extends State<BillingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter total working days')));
         return;
       }
-      final res = await widget.api.saveBillingOverride(
+      final res = await repo.saveBillingOverride(
         year: year,
         month: month,
         totalWorkingDays: days,
         note: noteCtrl.text.trim(),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Saved')));
+      final msg = res['queued'] == true ? 'Saved offline — will sync' : (res['message']?.toString() ?? 'Saved');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       await _load();
     } catch (e) {
       if (!mounted) return;

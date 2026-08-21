@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 
 import '../api.dart';
-import '../offline_store.dart';
-import '../widgets/rich_notes_field.dart';
+import '../repository.dart';
+import '../widgets/quill_notes_editor.dart';
 import '../widgets/speech_mic_button.dart';
 import 'meeting_note_detail_screen.dart';
 
@@ -18,12 +19,10 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
   late Future<List<dynamic>> future;
   final searchCtrl = TextEditingController();
   String status = '';
-  late final OfflineStore store;
 
   @override
   void initState() {
     super.initState();
-    store = OfflineStore(widget.api);
     future = _fetch();
   }
 
@@ -33,17 +32,8 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
     super.dispose();
   }
 
-  Future<List<dynamic>> _fetch() async {
-    try {
-      final notes = await widget.api.meetingNotes(q: searchCtrl.text.trim(), status: status);
-      await store.putCache('meeting-notes', notes);
-      await store.flush();
-      return notes;
-    } catch (_) {
-      final cached = await store.getCache('meeting-notes');
-      if (cached is List) return cached;
-      rethrow;
-    }
+  Future<List<dynamic>> _fetch() {
+    return repo.meetingNotes(q: searchCtrl.text.trim(), status: status);
   }
 
   Future<void> refresh() async {
@@ -54,7 +44,7 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
   Future<void> createNote() async {
     final titleCtrl = TextEditingController();
     final attendeesCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
+    final notesQuill = QuillController.basic();
     String? templateKey;
     final ok = await showDialog<bool>(
       context: context,
@@ -62,13 +52,14 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
         builder: (context, setLocal) => AlertDialog(
           title: const Text('New meeting note'),
           content: SizedBox(
-            width: 420,
+            width: MediaQuery.of(context).size.width,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: templateKey ?? '',
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Template'),
                     items: const [
                       DropdownMenuItem(value: '', child: Text('Blank')),
@@ -86,10 +77,10 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
                   Row(
                     children: [
                       const Expanded(child: Text('Notes', style: TextStyle(fontWeight: FontWeight.w600))),
-                      SpeechMicButton(onText: (t) => appendPlainToNotes(notesCtrl, t)),
+                      SpeechMicButton(onText: (t) => insertTextIntoQuill(notesQuill, t)),
                     ],
                   ),
-                  RichNotesField(controller: notesCtrl, minHeight: 120),
+                  QuillNotesEditor(controller: notesQuill, minHeight: 200),
                 ],
               ),
             ),
@@ -101,15 +92,28 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
         ),
       ),
     );
-    if (ok != true) return;
+    if (ok != true) {
+      notesQuill.dispose();
+      titleCtrl.dispose();
+      attendeesCtrl.dispose();
+      return;
+    }
     try {
-      final created = await widget.api.createMeetingNote(
+      final created = await repo.createMeetingNote(
         title: titleCtrl.text.trim(),
-        rawNotes: editableToHtmlish(notesCtrl.text),
+        rawNotes: quillControllerToHtml(notesQuill),
         attendees: attendeesCtrl.text.trim(),
         templateKey: templateKey,
       );
       await refresh();
+      if (created['queued'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Saved offline — will sync when online.')),
+          );
+        }
+        return;
+      }
       final id = (created['note'] as Map?)?['id']?.toString();
       if (id != null && mounted) {
         await Navigator.of(context).push(
@@ -120,18 +124,12 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
         await refresh();
       }
     } catch (e) {
-      await store.enqueue({
-        'type': 'meeting_create',
-        'title': titleCtrl.text.trim(),
-        'rawNotes': editableToHtmlish(notesCtrl.text),
-        'attendees': attendeesCtrl.text.trim(),
-      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Queued offline. ${e.toString().replaceFirst('Exception: ', '')}')),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     } finally {
-      notesCtrl.dispose();
+      notesQuill.dispose();
       titleCtrl.dispose();
       attendeesCtrl.dispose();
     }
@@ -163,6 +161,7 @@ class _MeetingNotesScreenState extends State<MeetingNotesScreen> {
                 const SizedBox(width: 8),
                 DropdownButton<String>(
                   value: status,
+                  underline: const SizedBox.shrink(),
                   items: const [
                     DropdownMenuItem(value: '', child: Text('All')),
                     DropdownMenuItem(value: 'todo', child: Text('ToDo')),

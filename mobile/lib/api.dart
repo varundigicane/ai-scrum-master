@@ -4,6 +4,24 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+/// Thrown when the server cannot be reached (offline / timeout / socket).
+/// The sync layer uses this to decide whether to queue a write for later.
+class NetworkException implements Exception {
+  NetworkException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+/// Thrown when the server responds with a 4xx/5xx (a real rejection, not offline).
+class ApiException implements Exception {
+  ApiException(this.message, this.statusCode);
+  final String message;
+  final int statusCode;
+  @override
+  String toString() => message;
+}
+
 class ApiClient {
   ApiClient({required this.baseUrl, this.token});
 
@@ -24,13 +42,13 @@ class ApiClient {
 
   Never _rethrowFriendly(Object error) {
     if (error is TimeoutException) {
-      throw Exception('Cannot reach the server. Check your internet connection and try again.');
+      throw NetworkException('Cannot reach the server. Check your internet connection and try again.');
     }
     if (error is SocketException) {
-      throw Exception('Cannot reach the server. Check your internet connection and try again.');
+      throw NetworkException('Cannot reach the server. Check your internet connection and try again.');
     }
     if (error is http.ClientException) {
-      throw Exception('Cannot reach the server. Check your internet connection and try again.');
+      throw NetworkException('Cannot reach the server. Check your internet connection and try again.');
     }
     if (error is FormatException) {
       throw Exception('Unexpected response from the server. Please try again.');
@@ -52,9 +70,36 @@ class ApiClient {
   Future<Map<String, dynamic>> _json(http.Response res, {String fallback = 'Request failed'}) async {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     if (res.statusCode >= 400) {
-      throw Exception(body['error']?.toString() ?? fallback);
+      throw ApiException(body['error']?.toString() ?? fallback, res.statusCode);
     }
     return body;
+  }
+
+  /// Generic JSON request used by the offline sync layer to replay any queued
+  /// write. [method] is GET/POST/PATCH/DELETE.
+  Future<Map<String, dynamic>> rawJson(
+    String method,
+    String path, {
+    Map<String, String>? query,
+    Object? body,
+  }) async {
+    final uri = _u(path, query);
+    final encoded = body == null ? null : jsonEncode(body);
+    final res = await _send(() {
+      switch (method.toUpperCase()) {
+        case 'POST':
+          return http.post(uri, headers: _headers, body: encoded);
+        case 'PATCH':
+          return http.patch(uri, headers: _headers, body: encoded);
+        case 'PUT':
+          return http.put(uri, headers: _headers, body: encoded);
+        case 'DELETE':
+          return http.delete(uri, headers: _headers, body: encoded);
+        default:
+          return http.get(uri, headers: _headers);
+      }
+    });
+    return _json(res);
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {

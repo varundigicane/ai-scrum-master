@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../repository.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.api});
@@ -56,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       error = null;
     });
     try {
-      final res = await widget.api.settings();
+      final res = await repo.settings();
       if (!mounted) return;
       final s = res['settings'] as Map<String, dynamic>? ?? {};
       void fill(String k) {
@@ -151,11 +152,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           body.remove(secret);
         }
       }
-      final res = await widget.api.saveSettings(body);
+      final res = await repo.saveSettings(body);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res['message']?.toString() ?? 'Saved')),
-      );
+      final msg = res['queued'] == true ? 'Saved offline — will sync' : (res['message']?.toString() ?? 'Saved');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -170,7 +170,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _testMail() async {
     setState(() => saving = true);
     try {
-      final res = await widget.api.testEmail(c('testTo').text.trim());
+      final res = await repo.testEmail(c('testTo').text.trim());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(res['message']?.toString() ?? 'Sent')),
