@@ -3,6 +3,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
+import '../reminder_alerts.dart';
 import '../repository.dart';
 import '../widgets/quill_notes_editor.dart';
 import '../widgets/speech_mic_button.dart';
@@ -88,6 +89,21 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
         providers = p;
         projects = projs;
       });
+      final reminders = (n['reminders'] as List<dynamic>?) ?? [];
+      for (final raw in reminders) {
+        if (raw is! Map) continue;
+        final r = Map<String, dynamic>.from(raw);
+        if (r['done'] == true) continue;
+        final due = DateTime.tryParse(r['dueAt']?.toString() ?? '');
+        if (due == null || !due.isAfter(DateTime.now())) continue;
+        await ReminderAlerts.instance.scheduleReminder(
+          reminderId: r['id'].toString(),
+          title: n['title']?.toString() ?? 'Meeting reminder',
+          body: (r['note']?.toString().isNotEmpty == true) ? r['note'].toString() : 'Follow-up',
+          dueAt: due,
+          noteId: widget.noteId,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => error = e.toString().replaceFirst('Exception: ', ''));
@@ -439,40 +455,151 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                 onPressed: busy
                     ? null
                     : () async {
-                        final due = TextEditingController();
+                        DateTime dueAt = DateTime.now().add(const Duration(hours: 1));
                         final noteText = TextEditingController();
                         final ok = await showDialog<bool>(
                           context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Add reminder'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextField(
-                                  controller: due,
-                                  decoration: const InputDecoration(labelText: 'Due (ISO e.g. 2026-08-21T10:00:00)'),
+                          builder: (ctx) => StatefulBuilder(
+                            builder: (ctx, setLocal) => AlertDialog(
+                              title: const Text('Add reminder'),
+                              content: SingleChildScrollView(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        'Date: ${dueAt.toLocal().toString().split(' ').first}',
+                                      ),
+                                      trailing: const Icon(Icons.calendar_today),
+                                      onTap: () async {
+                                        final d = await showDatePicker(
+                                          context: ctx,
+                                          initialDate: dueAt,
+                                          firstDate: DateTime(2020),
+                                          lastDate: DateTime(2100),
+                                        );
+                                        if (d != null) {
+                                          setLocal(() {
+                                            dueAt = DateTime(d.year, d.month, d.day, dueAt.hour, dueAt.minute);
+                                          });
+                                        }
+                                      },
+                                    ),
+                                    ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        'Time: ${dueAt.hour.toString().padLeft(2, '0')}:${dueAt.minute.toString().padLeft(2, '0')}',
+                                      ),
+                                      trailing: const Icon(Icons.access_time),
+                                      onTap: () async {
+                                        final t = await showTimePicker(
+                                          context: ctx,
+                                          initialTime: TimeOfDay.fromDateTime(dueAt),
+                                        );
+                                        if (t != null) {
+                                          setLocal(() {
+                                            dueAt = DateTime(dueAt.year, dueAt.month, dueAt.day, t.hour, t.minute);
+                                          });
+                                        }
+                                      },
+                                    ),
+                                    TextField(
+                                      controller: noteText,
+                                      decoration: const InputDecoration(labelText: 'Note'),
+                                    ),
+                                  ],
                                 ),
-                                TextField(controller: noteText, decoration: const InputDecoration(labelText: 'Note')),
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
                               ],
                             ),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
-                            ],
                           ),
                         );
                         if (ok == true) {
-                          await _run(
-                            () => repo.meetingAction(widget.noteId, 'reminder', {
-                              'dueAt': due.text.trim(),
-                              'note': noteText.text.trim(),
-                            }),
-                          );
+                          final messenger = ScaffoldMessenger.of(context);
+                          final res = await repo.meetingAction(widget.noteId, 'reminder', {
+                            'dueAt': dueAt.toUtc().toIso8601String(),
+                            'note': noteText.text.trim(),
+                          });
+                          final rem = res['reminder'] as Map?;
+                          if (rem != null && rem['id'] != null) {
+                            await ReminderAlerts.instance.scheduleReminder(
+                              reminderId: rem['id'].toString(),
+                              title: titleCtrl.text.trim().isEmpty ? 'Meeting reminder' : titleCtrl.text.trim(),
+                              body: noteText.text.trim().isEmpty ? 'Follow-up' : noteText.text.trim(),
+                              dueAt: dueAt,
+                              noteId: widget.noteId,
+                            );
+                          }
+                          if (mounted) {
+                            final msg = res['queued'] == true
+                                ? 'Saved offline — will sync'
+                                : (res['message']?.toString() ?? 'Done');
+                            messenger.showSnackBar(SnackBar(content: Text(msg)));
+                            await _load();
+                          }
                         }
-                        due.dispose();
                         noteText.dispose();
                       },
                 child: const Text('Add reminder'),
+              ),
+              Builder(
+                builder: (context) {
+                  final reminders = (note?['reminders'] as List<dynamic>?) ?? [];
+                  if (reminders.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w600)),
+                      for (final raw in reminders)
+                        Builder(
+                          builder: (_) {
+                            final r = Map<String, dynamic>.from(raw as Map);
+                            final due = DateTime.tryParse(r['dueAt']?.toString() ?? '');
+                            final done = r['done'] == true;
+                            final overdue = !done && due != null && due.isBefore(DateTime.now());
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                              title: Text(r['note']?.toString().isNotEmpty == true ? r['note'].toString() : 'Follow-up'),
+                              subtitle: Text(
+                                '${due?.toLocal() ?? r['dueAt']}${done ? ' · done' : overdue ? ' · overdue' : ''}',
+                                style: TextStyle(
+                                  color: done
+                                      ? Colors.blueGrey
+                                      : overdue
+                                          ? const Color(0xFFE11D48)
+                                          : const Color(0xFFD97706),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              trailing: done
+                                  ? null
+                                  : TextButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () async {
+                                              await _run(
+                                                () => repo.meetingAction(
+                                                  widget.noteId,
+                                                  'complete-reminder',
+                                                  {'reminderId': r['id']},
+                                                ),
+                                              );
+                                              await ReminderAlerts.instance.cancelReminder(r['id'].toString());
+                                            },
+                                      child: const Text('Done'),
+                                    ),
+                            );
+                          },
+                        ),
+                    ],
+                  );
+                },
               ),
               const Divider(height: 32),
               Wrap(

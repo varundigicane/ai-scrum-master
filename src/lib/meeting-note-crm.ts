@@ -227,6 +227,27 @@ export async function addNoteReminder(input: {
   return reminder;
 }
 
+export async function completeNoteReminder(input: {
+  companyId: string;
+  noteId: string;
+  reminderId: string;
+}) {
+  const reminder = await prisma.meetingNoteReminder.findFirst({
+    where: {
+      id: input.reminderId,
+      noteId: input.noteId,
+      meetingNote: { companyId: input.companyId },
+    },
+  });
+  if (!reminder) throw new Error("Reminder not found.");
+  const updated = await prisma.meetingNoteReminder.update({
+    where: { id: reminder.id },
+    data: { done: true },
+  });
+  invalidateNotesCache(input.companyId);
+  return updated;
+}
+
 export async function linkNotesByHeading(input: {
   companyId: string;
   fromNoteId: string;

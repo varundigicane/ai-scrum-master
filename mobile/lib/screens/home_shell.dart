@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../reminder_alerts.dart';
 import '../repository.dart';
 import '../widgets/offline_banner.dart';
 import 'meeting_notes_screen.dart';
@@ -11,6 +12,7 @@ import 'agent_screen.dart';
 import 'settings_screen.dart';
 import 'menu_data_screen.dart';
 import 'placeholder_screen.dart';
+import 'meeting_note_detail_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.api, required this.onLogout});
@@ -22,7 +24,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   String? selectedKey = 'overview';
   Map<String, dynamic>? me;
   String? error;
@@ -45,7 +47,26 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkReminders();
+    }
+  }
+
+  Future<void> _checkReminders() async {
+    if (!mounted || loading || error != null) return;
+    await ReminderAlerts.instance.showDuePopups(context, api: widget.api);
   }
 
   Future<void> _load() async {
@@ -57,12 +78,25 @@ class _HomeShellState extends State<HomeShell> {
       final data = await repo.me();
       if (!mounted) return;
       setState(() => me = data);
+      final charts = data['charts'] as Map<String, dynamic>?;
+      final rem = charts?['reminders'] as Map<String, dynamic>?;
+      await ReminderAlerts.instance.syncFromOverview(rem?['items'] as List<dynamic>?);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkReminders());
     } catch (e) {
       if (!mounted) return;
       setState(() => error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  void openMeetingNote(String noteId) {
+    setState(() => selectedKey = 'meeting_notes');
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MeetingNoteDetailScreen(api: widget.api, noteId: noteId),
+      ),
+    );
   }
 
   List<Map<String, dynamic>> get menus {
@@ -106,7 +140,7 @@ class _HomeShellState extends State<HomeShell> {
       case 'settings':
         return SettingsScreen(api: widget.api);
       case 'overview':
-        return OverviewScreen(me: me, onRefresh: _load);
+        return OverviewScreen(me: me, onRefresh: _load, onOpenNote: openMeetingNote);
       default:
         if (key != null && _listMenus.contains(key)) {
           final label = menus.firstWhere(

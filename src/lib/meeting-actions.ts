@@ -448,6 +448,24 @@ export async function addMeetingNoteReminder(formData: FormData): Promise<Action
   }
 }
 
+export async function completeMeetingNoteReminder(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await assertFeature("meeting_notes");
+    const { completeNoteReminder } = await import("@/lib/meeting-note-crm");
+    const noteId = String(formData.get("noteId") ?? "");
+    const reminderId = String(formData.get("reminderId") ?? "");
+    await completeNoteReminder({
+      companyId: session.user.companyId,
+      noteId,
+      reminderId,
+    });
+    revalidateMeeting(noteId);
+    return { ok: true, message: "Reminder marked done." };
+  } catch (error) {
+    return { ok: false, error: toFriendlyError(error) };
+  }
+}
+
 export async function linkMeetingNote(formData: FormData): Promise<ActionResult> {
   try {
     const session = await assertFeature("meeting_notes");

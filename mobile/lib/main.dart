@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'config.dart';
+import 'reminder_alerts.dart';
 import 'repository.dart';
 import 'theme.dart';
 import 'screens/login_screen.dart';
@@ -18,6 +19,7 @@ Future<void> main() async {
   final token = prefs.getString('token');
   final api = ApiClient(baseUrl: kApiBaseUrl, token: token);
   await initRepository(api);
+  await ReminderAlerts.instance.init();
   runApp(AiScrumApp(initialToken: token));
 }
 

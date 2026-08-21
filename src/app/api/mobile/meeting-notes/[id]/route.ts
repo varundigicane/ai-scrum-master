@@ -15,6 +15,7 @@ import type { MeetingNoteStatus, RequirementKind, TaskKind } from "@/generated/p
 import {
   addNoteComment,
   addNoteReminder,
+  completeNoteReminder,
   getMeetingNoteDetail,
   linkNotesByHeading,
   noteToMarkdown,
@@ -357,6 +358,19 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
         note: String(body.note ?? ""),
       });
       return NextResponse.json({ reminder, message: "Reminder added." });
+    }
+
+    if (action === "complete-reminder") {
+      const reminderId = String(body.reminderId ?? "");
+      if (!reminderId) {
+        return NextResponse.json({ error: "reminderId required." }, { status: 400 });
+      }
+      const reminder = await completeNoteReminder({
+        companyId: payload.companyId,
+        noteId: id,
+        reminderId,
+      });
+      return NextResponse.json({ reminder, message: "Reminder marked done." });
     }
 
     if (action === "link") {

@@ -3,8 +3,8 @@ import { getBearerToken, verifyMobileToken } from "@/lib/mobile-auth";
 import { getEnabledFeatures } from "@/lib/permissions";
 import { FEATURE_CATALOG, ROLE_LABELS } from "@/lib/roles";
 import { toFriendlyError } from "@/lib/friendly-error";
-import { prisma } from "@/lib/prisma";
 import { cacheGet, cacheSet, companyCacheKey } from "@/lib/memory-cache";
+import { getOverviewCharts } from "@/lib/overview-charts";
 
 export async function GET(req: Request) {
   try {
@@ -23,21 +23,7 @@ export async function GET(req: Request) {
       href: f.href,
     }));
 
-    const [accounts, projects, resources, pendingStatus, overdueTasks] = await Promise.all([
-      prisma.account.count({ where: { companyId: payload.companyId, active: true } }),
-      prisma.project.count({ where: { account: { companyId: payload.companyId }, active: true } }),
-      prisma.resource.count({ where: { companyId: payload.companyId, active: true } }),
-      prisma.statusRequest.count({
-        where: { statusWindow: { companyId: payload.companyId }, state: "pending" },
-      }),
-      prisma.task.count({
-        where: {
-          project: { account: { companyId: payload.companyId } },
-          status: { not: "done" },
-          clientDeadline: { lt: new Date() },
-        },
-      }),
-    ]);
+    const charts = await getOverviewCharts(payload.companyId);
 
     const body = {
       user: {
@@ -49,7 +35,15 @@ export async function GET(req: Request) {
         companyId: payload.companyId,
       },
       menus,
-      kpis: { accounts, projects, resources, pendingStatus, overdueTasks },
+      kpis: charts.kpis,
+      charts: {
+        rag: charts.rag,
+        phases: charts.phases,
+        defectSeverity: charts.defectSeverity,
+        taskStatus: charts.taskStatus,
+        statusToday: charts.statusToday,
+        reminders: charts.reminders,
+      },
     };
     cacheSet(cacheKey, body, 30_000);
     return NextResponse.json(body);

@@ -1,6 +1,7 @@
 import {
   addMeetingNoteComment,
   addMeetingNoteReminder,
+  completeMeetingNoteReminder,
   linkMeetingNote,
 } from "@/lib/meeting-actions";
 
@@ -148,12 +149,41 @@ export function MeetingNoteCrmPanel({
 
       <div className="panel p-4 space-y-3">
         <h3 className="font-semibold">Reminders / follow-ups</h3>
-        <ul className="text-sm space-y-1">
-          {reminders.map((r) => (
-            <li key={r.id}>
-              {r.dueAt.toLocaleString()} — {r.note || "Follow-up"} {r.done ? "(done)" : ""}
-            </li>
-          ))}
+        <ul className="text-sm space-y-2">
+          {reminders.map((r) => {
+            const overdue = !r.done && r.dueAt.getTime() < Date.now();
+            return (
+              <li key={r.id} className="flex flex-wrap items-center gap-2 justify-between">
+                <span>
+                  <span style={{ color: r.done ? "var(--muted)" : overdue ? "var(--danger)" : "var(--warn)" }}>
+                    {r.dueAt.toLocaleString()}
+                  </span>
+                  {" — "}
+                  {r.note || "Follow-up"}
+                  {r.done ? " (done)" : overdue ? " (overdue)" : ""}
+                </span>
+                {!r.done ? (
+                  <form
+                    action={async (fd) => {
+                      "use server";
+                      fd.set("noteId", noteId);
+                      fd.set("reminderId", r.id);
+                      const { redirect } = await import("next/navigation");
+                      const result = await completeMeetingNoteReminder(fd);
+                      const q = result.ok
+                        ? `ok=${encodeURIComponent(result.message ?? "Done")}`
+                        : `error=${encodeURIComponent(result.error ?? "Failed")}`;
+                      redirect(`/dashboard/meeting-notes/${noteId}?${q}`);
+                    }}
+                  >
+                    <button className="btn text-xs py-1 px-2" type="submit">
+                      Mark done
+                    </button>
+                  </form>
+                ) : null}
+              </li>
+            );
+          })}
           {reminders.length === 0 ? <li className="text-[var(--muted)]">None</li> : null}
         </ul>
         <form
