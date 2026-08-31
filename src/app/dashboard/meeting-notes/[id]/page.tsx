@@ -254,6 +254,7 @@ export default async function MeetingNoteDetailPage({
         linksFrom={note.linksFrom}
         otherNotes={otherNotes}
         canEditMeta={isOwner}
+        currentUserId={session.user.id}
       />
 
       <section className="panel p-4 space-y-3" id="step-summary">

@@ -23,6 +23,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
   Map<String, dynamic>? providers;
   List<dynamic> projects = [];
   String? error;
+  String? myUserId;
   bool loading = true;
   bool busy = false;
 
@@ -84,16 +85,23 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
         proposalController.document = Document();
       }
 
+      String? uid;
+      try {
+        final me = await repo.me();
+        uid = (me['user'] as Map?)?['id']?.toString();
+      } catch (_) {}
       setState(() {
         note = n;
         providers = p;
         projects = projs;
+        myUserId = uid;
       });
       final reminders = (n['reminders'] as List<dynamic>?) ?? [];
       for (final raw in reminders) {
         if (raw is! Map) continue;
         final r = Map<String, dynamic>.from(raw);
         if (r['done'] == true) continue;
+        if (uid != null && r['createdById']?.toString() != uid) continue;
         final due = DateTime.tryParse(r['dueAt']?.toString() ?? '');
         if (due == null || !due.isAfter(DateTime.now())) continue;
         await ReminderAlerts.instance.scheduleReminder(
@@ -641,7 +649,7 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                                   fontSize: 12,
                                 ),
                               ),
-                              trailing: done
+                              trailing: done || (myUserId != null && r['createdById']?.toString() != myUserId)
                                   ? null
                                   : TextButton(
                                       onPressed: busy

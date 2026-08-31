@@ -329,6 +329,7 @@ export async function completeNoteReminder(input: {
     where: {
       id: input.reminderId,
       noteId: input.noteId,
+      createdById: input.userId,
       meetingNote: { companyId: input.companyId },
     },
   });

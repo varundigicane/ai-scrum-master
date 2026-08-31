@@ -14,7 +14,7 @@ type Comment = {
   author: { name: string };
   attachments: Array<{ id: string; storageKey: string; mimeType: string }>;
 };
-type Reminder = { id: string; dueAt: Date; note: string; done: boolean };
+type Reminder = { id: string; dueAt: Date; note: string; done: boolean; createdById: string };
 type LinkRow = {
   id: string;
   heading: string;
@@ -35,6 +35,7 @@ export function MeetingNoteCrmPanel({
   linksFrom,
   otherNotes,
   canEditMeta = true,
+  currentUserId,
 }: {
   noteId: string;
   functionalId: string | null;
@@ -48,6 +49,7 @@ export function MeetingNoteCrmPanel({
   linksFrom: LinkRow[];
   otherNotes: NoteRef[];
   canEditMeta?: boolean;
+  currentUserId: string;
 }) {
   return (
     <div className="space-y-4">
@@ -166,7 +168,7 @@ export function MeetingNoteCrmPanel({
                   {r.note || "Follow-up"}
                   {r.done ? " (done)" : overdue ? " (overdue)" : ""}
                 </span>
-                {!r.done ? (
+                {!r.done && r.createdById === currentUserId ? (
                   <form
                     action={async (fd) => {
                       "use server";

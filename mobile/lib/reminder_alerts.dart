@@ -198,11 +198,11 @@ class ReminderAlerts {
         if (!context.mounted) break;
         await showDialog<void>(
           context: context,
-          barrierDismissible: false,
+          barrierDismissible: true,
           builder: (ctx) {
             final dueAt = DateTime.tryParse(item['dueAt']?.toString() ?? '');
             return PopScope(
-              canPop: false,
+              canPop: true,
               child: AlertDialog(
                 title: Text(item['overdue'] == true || (dueAt?.isBefore(DateTime.now()) ?? false)
                     ? 'Overdue reminder'
@@ -222,6 +222,10 @@ class ReminderAlerts {
                   ],
                 ),
                 actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Close'),
+                  ),
                   if ((item['noteId']?.toString() ?? '').isNotEmpty)
                     TextButton(
                       onPressed: () async {

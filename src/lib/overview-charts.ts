@@ -97,6 +97,7 @@ export async function getOverviewCharts(companyId: string, userId: string): Prom
     prisma.meetingNoteReminder.findMany({
       where: {
         done: false,
+        createdById: userId,
         meetingNote: {
           companyId,
           OR: [
