@@ -1,6 +1,7 @@
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
+import { PoweredByDigicane } from "@/components/PoweredByDigicane";
 
 export default function LoginPage({
   searchParams,
@@ -68,6 +69,7 @@ async function LoginInner({
         <p className="mt-6 text-xs text-[var(--muted)]">
           Demo: admin@acme.local / password123 · Roles: CEO, SVP, VP, AVP, Project Manager, Employee
         </p>
+        <PoweredByDigicane className="mt-4 text-center" />
       </div>
     </main>
   );

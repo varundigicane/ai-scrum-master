@@ -3,6 +3,7 @@ import '../api.dart';
 import '../reminder_alerts.dart';
 import '../repository.dart';
 import '../widgets/offline_banner.dart';
+import '../widgets/powered_by_digicane.dart';
 import 'meeting_notes_screen.dart';
 import 'overview_screen.dart';
 import 'projects_screen.dart';
@@ -214,6 +215,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                       ),
                   ],
                 ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: PoweredByDigicane(),
               ),
               ListTile(
                 leading: const Icon(Icons.logout),

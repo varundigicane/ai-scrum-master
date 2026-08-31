@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { PoweredByDigicane } from "@/components/PoweredByDigicane";
 
 export const metadata: Metadata = {
   title: "AI Scrum Master | Delivery status, SDLC & AI meeting proposals",
@@ -79,6 +80,10 @@ export default async function HomePage() {
           </article>
         ))}
       </section>
+
+      <footer className="mx-auto max-w-5xl px-4 pb-10">
+        <PoweredByDigicane />
+      </footer>
     </main>
   );
 }

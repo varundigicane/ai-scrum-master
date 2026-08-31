@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { PoweredByDigicane } from "@/components/PoweredByDigicane";
 
 type NavItem = { key: string; label: string; href: string };
 
@@ -78,6 +79,7 @@ export function DashboardShell({
             Sign out
           </button>
         </form>
+        <PoweredByDigicane className="mt-4 text-center" />
       </aside>
       <main className="p-4 md:p-8">{children}</main>
     </div>

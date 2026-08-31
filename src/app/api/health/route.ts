@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { APP_VERSION } from "@/lib/app-version";
 
 export const dynamic = "force-dynamic";
 
@@ -7,10 +8,15 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({ ok: true, db: "up" });
+    return NextResponse.json({ ok: true, db: "up", version: APP_VERSION });
   } catch (error) {
     return NextResponse.json(
-      { ok: false, db: "down", error: error instanceof Error ? error.message : "unknown" },
+      {
+        ok: false,
+        db: "down",
+        version: APP_VERSION,
+        error: error instanceof Error ? error.message : "unknown",
+      },
       { status: 503 },
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api.dart';
+import '../widgets/powered_by_digicane.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.api, required this.onLoggedIn});
@@ -96,6 +97,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: loading ? null : submit,
                   child: Text(loading ? 'Signing in…' : 'Continue'),
                 ),
+                const SizedBox(height: 24),
+                const PoweredByDigicane(),
               ],
             ),
           ),

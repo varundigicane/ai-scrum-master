@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PoweredByDigicane } from "@/components/PoweredByDigicane";
 
 export const metadata: Metadata = {
   title: "FAQ | AI Scrum Master",
@@ -65,6 +66,9 @@ export default function FaqPage() {
           Sign in
         </Link>
       </p>
+      <footer className="mt-10">
+        <PoweredByDigicane />
+      </footer>
     </main>
   );
 }
