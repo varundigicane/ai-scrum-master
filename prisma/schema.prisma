@@ -181,6 +181,7 @@ model User {
   meetingNotes MeetingNote[]
   noteComments MeetingNoteComment[]
   noteReminders MeetingNoteReminder[]
+  noteShares   MeetingNoteShare[]
 
   @@index([companyId])
 }
@@ -799,11 +800,26 @@ model MeetingNote {
   reminders   MeetingNoteReminder[]
   assignments MeetingNoteAssignment[]
   comments    MeetingNoteComment[]
+  shares      MeetingNoteShare[]
 
   @@unique([companyId, functionalId])
   @@index([companyId, createdAt])
   @@index([companyId, noteStatus])
   @@index([createdById])
+}
+
+/// Explicit share of a note's post-summary workflow with another company user.
+model MeetingNoteShare {
+  id        String   @id @default(cuid())
+  noteId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  meetingNote MeetingNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+  @@index([userId])
 }
 
 model MeetingNoteLink {

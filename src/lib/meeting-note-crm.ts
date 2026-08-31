@@ -5,6 +5,7 @@ import type { MeetingNoteStatus } from "@/generated/prisma/enums";
 import { cacheInvalidatePrefix } from "@/lib/memory-cache";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import type { Prisma } from "@/generated/prisma/client";
 
 const NOTE_INCLUDE = {
   summary: { select: { id: true } },
@@ -21,11 +22,56 @@ const NOTE_INCLUDE = {
   linksFrom: {
     include: { toNote: { select: { id: true, title: true, functionalId: true } } },
   },
+  shares: { select: { userId: true, user: { select: { id: true, name: true, email: true } } } },
 } as const;
 
-export function invalidateNotesCache(companyId: string) {
+export function invalidateNotesCache(companyId: string, userId?: string) {
   cacheInvalidatePrefix(`${companyId}:meeting-notes`);
   cacheInvalidatePrefix(`${companyId}:menu-data`);
+  cacheInvalidatePrefix(`${companyId}:me`);
+  if (userId) cacheInvalidatePrefix(`${companyId}:meeting-notes:${userId}`);
+}
+
+/** Owner always; shared user only when a summary exists. */
+export function accessibleNoteWhere(userId: string): Prisma.MeetingNoteWhereInput {
+  return {
+    OR: [
+      { createdById: userId },
+      {
+        AND: [{ shares: { some: { userId } } }, { summary: { isNot: null } }],
+      },
+    ],
+  };
+}
+
+export async function isNoteOwner(companyId: string, userId: string, noteId: string) {
+  const note = await prisma.meetingNote.findFirst({
+    where: { id: noteId, companyId, createdById: userId },
+    select: { id: true },
+  });
+  return Boolean(note);
+}
+
+export async function canAccessNote(companyId: string, userId: string, noteId: string) {
+  const note = await prisma.meetingNote.findFirst({
+    where: { id: noteId, companyId, ...accessibleNoteWhere(userId) },
+    select: { id: true, createdById: true },
+  });
+  return note;
+}
+
+export async function requireAccessibleNote(companyId: string, userId: string, noteId: string) {
+  const note = await canAccessNote(companyId, userId, noteId);
+  if (!note) throw new Error("Meeting note not found.");
+  return note;
+}
+
+export async function requireOwnedNote(companyId: string, userId: string, noteId: string) {
+  const note = await prisma.meetingNote.findFirst({
+    where: { id: noteId, companyId, createdById: userId },
+  });
+  if (!note) throw new Error("Meeting note not found.");
+  return note;
 }
 
 export async function createMeetingNoteRecord(input: {
@@ -63,13 +109,13 @@ export async function createMeetingNoteRecord(input: {
       },
     });
   });
-  invalidateNotesCache(input.companyId);
+  invalidateNotesCache(input.companyId, input.createdById);
   return note;
 }
 
-export async function getMeetingNoteDetail(companyId: string, id: string) {
-  return prisma.meetingNote.findFirst({
-    where: { id, companyId },
+export async function getMeetingNoteDetail(companyId: string, userId: string, id: string) {
+  const note = await prisma.meetingNote.findFirst({
+    where: { id, companyId, ...accessibleNoteWhere(userId) },
     include: {
       summary: true,
       proposal: { include: { requirements: { orderBy: { sortOrder: "asc" } } } },
@@ -89,57 +135,108 @@ export async function getMeetingNoteDetail(companyId: string, id: string) {
       linksTo: {
         include: { fromNote: { select: { id: true, title: true, functionalId: true } } },
       },
+      shares: {
+        select: { userId: true, user: { select: { id: true, name: true, email: true } } },
+      },
+      createdBy: { select: { id: true, name: true, email: true } },
     },
   });
+  if (!note) return null;
+  const isOwner = note.createdById === userId;
+  if (!isOwner) {
+    return { ...note, rawNotes: "", isOwner: false as const, isShared: true as const };
+  }
+  return { ...note, isOwner: true as const, isShared: false as const };
 }
 
-export async function searchMeetingNotes(companyId: string, q: string, take = 50) {
+export async function searchMeetingNotes(companyId: string, userId: string, q: string, take = 50) {
   const term = q.trim();
+  const access = accessibleNoteWhere(userId);
+  const listSelect = {
+    id: true,
+    title: true,
+    functionalId: true,
+    noteStatus: true,
+    attendees: true,
+    createdAt: true,
+    updatedAt: true,
+    createdById: true,
+    summary: { select: { id: true } },
+    proposal: { select: { id: true } },
+  } as const;
+
   if (!term) {
     return prisma.meetingNote.findMany({
-      where: { companyId },
+      where: { companyId, ...access },
       orderBy: { updatedAt: "desc" },
       take,
-      select: {
-        id: true,
-        title: true,
-        functionalId: true,
-        noteStatus: true,
-        attendees: true,
-        createdAt: true,
-        updatedAt: true,
-        summary: { select: { id: true } },
-        proposal: { select: { id: true } },
-      },
+      select: listSelect,
     });
   }
+
   return prisma.meetingNote.findMany({
     where: {
       companyId,
-      OR: [
-        { title: { contains: term, mode: "insensitive" } },
-        { functionalId: { contains: term, mode: "insensitive" } },
-        { rawNotes: { contains: term, mode: "insensitive" } },
+      AND: [
+        access,
+        {
+          OR: [
+            { title: { contains: term, mode: "insensitive" } },
+            { functionalId: { contains: term, mode: "insensitive" } },
+            // Raw-notes search only for own notes (never leak private body matches to sharers).
+            { createdById: userId, rawNotes: { contains: term, mode: "insensitive" } },
+          ],
+        },
       ],
     },
     orderBy: { updatedAt: "desc" },
     take,
-    select: {
-      id: true,
-      title: true,
-      functionalId: true,
-      noteStatus: true,
-      attendees: true,
-      createdAt: true,
-      updatedAt: true,
-      summary: { select: { id: true } },
-      proposal: { select: { id: true } },
-    },
+    select: listSelect,
+  });
+}
+
+export async function setNoteShares(input: {
+  companyId: string;
+  noteId: string;
+  ownerUserId: string;
+  userIds: string[];
+}) {
+  const note = await prisma.meetingNote.findFirst({
+    where: { id: input.noteId, companyId: input.companyId, createdById: input.ownerUserId },
+    include: { summary: { select: { id: true } } },
+  });
+  if (!note) throw new Error("Meeting note not found.");
+  if (!note.summary) {
+    throw new Error("Generate a summary before sharing this note.");
+  }
+
+  const unique = [...new Set(input.userIds.filter((id) => id && id !== input.ownerUserId))];
+  const users = unique.length
+    ? await prisma.user.findMany({
+        where: { companyId: input.companyId, id: { in: unique }, active: true },
+        select: { id: true },
+      })
+    : [];
+  const allowed = new Set(users.map((u) => u.id));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.meetingNoteShare.deleteMany({ where: { noteId: input.noteId } });
+    if (allowed.size) {
+      await tx.meetingNoteShare.createMany({
+        data: [...allowed].map((userId) => ({ noteId: input.noteId, userId })),
+      });
+    }
+  });
+  invalidateNotesCache(input.companyId, input.ownerUserId);
+  return prisma.meetingNoteShare.findMany({
+    where: { noteId: input.noteId },
+    include: { user: { select: { id: true, name: true, email: true } } },
   });
 }
 
 export async function updateMeetingNoteFields(
   companyId: string,
+  userId: string,
   id: string,
   patch: {
     title?: string;
@@ -149,8 +246,8 @@ export async function updateMeetingNoteFields(
     resourceIds?: string[];
   },
 ) {
-  const note = await prisma.meetingNote.findFirst({ where: { id, companyId } });
-  if (!note) throw new Error("Meeting note not found.");
+  // Raw notes / title edits require ownership.
+  const note = await requireOwnedNote(companyId, userId, id);
 
   const title = (patch.title ?? note.title).trim();
   const rawNotes = (patch.rawNotes ?? note.rawNotes).trim();
@@ -180,8 +277,8 @@ export async function updateMeetingNoteFields(
       }
     }
   });
-  invalidateNotesCache(companyId);
-  return getMeetingNoteDetail(companyId, id);
+  invalidateNotesCache(companyId, userId);
+  return getMeetingNoteDetail(companyId, userId, id);
 }
 
 export async function addNoteComment(input: {
@@ -190,17 +287,14 @@ export async function addNoteComment(input: {
   authorUserId: string;
   body: string;
 }) {
-  const note = await prisma.meetingNote.findFirst({
-    where: { id: input.noteId, companyId: input.companyId },
-  });
-  if (!note) throw new Error("Meeting note not found.");
+  await requireAccessibleNote(input.companyId, input.authorUserId, input.noteId);
   const body = input.body.trim();
   if (!body) throw new Error("Comment cannot be empty.");
   const comment = await prisma.meetingNoteComment.create({
     data: { noteId: input.noteId, authorUserId: input.authorUserId, body },
     include: { author: { select: { id: true, name: true } }, attachments: true },
   });
-  invalidateNotesCache(input.companyId);
+  invalidateNotesCache(input.companyId, input.authorUserId);
   return comment;
 }
 
@@ -211,10 +305,7 @@ export async function addNoteReminder(input: {
   dueAt: Date;
   note?: string;
 }) {
-  const note = await prisma.meetingNote.findFirst({
-    where: { id: input.noteId, companyId: input.companyId },
-  });
-  if (!note) throw new Error("Meeting note not found.");
+  await requireAccessibleNote(input.companyId, input.createdById, input.noteId);
   const reminder = await prisma.meetingNoteReminder.create({
     data: {
       noteId: input.noteId,
@@ -223,7 +314,7 @@ export async function addNoteReminder(input: {
       note: input.note?.trim() ?? "",
     },
   });
-  invalidateNotesCache(input.companyId);
+  invalidateNotesCache(input.companyId, input.createdById);
   return reminder;
 }
 
@@ -231,7 +322,9 @@ export async function completeNoteReminder(input: {
   companyId: string;
   noteId: string;
   reminderId: string;
+  userId: string;
 }) {
+  await requireAccessibleNote(input.companyId, input.userId, input.noteId);
   const reminder = await prisma.meetingNoteReminder.findFirst({
     where: {
       id: input.reminderId,
@@ -244,22 +337,22 @@ export async function completeNoteReminder(input: {
     where: { id: reminder.id },
     data: { done: true },
   });
-  invalidateNotesCache(input.companyId);
+  invalidateNotesCache(input.companyId, input.userId);
   return updated;
 }
 
 export async function linkNotesByHeading(input: {
   companyId: string;
+  userId: string;
   fromNoteId: string;
   toNoteId: string;
   heading: string;
 }) {
   if (input.fromNoteId === input.toNoteId) throw new Error("Cannot link a note to itself.");
-  const [from, to] = await Promise.all([
-    prisma.meetingNote.findFirst({ where: { id: input.fromNoteId, companyId: input.companyId } }),
-    prisma.meetingNote.findFirst({ where: { id: input.toNoteId, companyId: input.companyId } }),
+  await Promise.all([
+    requireAccessibleNote(input.companyId, input.userId, input.fromNoteId),
+    requireAccessibleNote(input.companyId, input.userId, input.toNoteId),
   ]);
-  if (!from || !to) throw new Error("Meeting note not found.");
   const link = await prisma.meetingNoteLink.upsert({
     where: {
       fromNoteId_toNoteId_heading: {
@@ -275,12 +368,13 @@ export async function linkNotesByHeading(input: {
     },
     update: {},
   });
-  invalidateNotesCache(input.companyId);
+  invalidateNotesCache(input.companyId, input.userId);
   return link;
 }
 
 export async function saveCommentImage(input: {
   companyId: string;
+  userId: string;
   commentId: string;
   buffer: Buffer;
   mimeType: string;
@@ -290,7 +384,10 @@ export async function saveCommentImage(input: {
   if (input.buffer.length > 5 * 1024 * 1024) throw new Error("Image must be under 5MB.");
 
   const comment = await prisma.meetingNoteComment.findFirst({
-    where: { id: input.commentId, meetingNote: { companyId: input.companyId } },
+    where: {
+      id: input.commentId,
+      meetingNote: { companyId: input.companyId, ...accessibleNoteWhere(input.userId) },
+    },
   });
   if (!comment) throw new Error("Comment not found.");
 
@@ -310,7 +407,7 @@ export async function saveCommentImage(input: {
       byteSize: input.buffer.length,
     },
   });
-  invalidateNotesCache(input.companyId);
+  invalidateNotesCache(input.companyId, input.userId);
   return att;
 }
 
@@ -340,7 +437,7 @@ export function noteToMarkdown(note: {
     "",
     "## Notes",
     "",
-    plain,
+    plain || "_(private — visible to creator only)_",
   ];
   if (note.comments?.length) {
     lines.push("", "## Comments", "");

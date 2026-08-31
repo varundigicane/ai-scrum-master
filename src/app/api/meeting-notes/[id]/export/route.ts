@@ -12,13 +12,12 @@ export async function GET(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await ctx.params;
-  const note = await getMeetingNoteDetail(session.user.companyId, id);
+  const note = await getMeetingNoteDetail(session.user.companyId, session.user.id, id);
   if (!note) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const format = new URL(req.url).searchParams.get("format") ?? "md";
   const md = noteToMarkdown(note);
   if (format === "pdf") {
-    // Lightweight printable HTML that browsers can Save as PDF
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${note.functionalId ?? note.title}</title>
       <style>body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;line-height:1.5}
       pre{white-space:pre-wrap}</style></head><body>

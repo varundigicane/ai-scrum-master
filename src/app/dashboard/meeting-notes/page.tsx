@@ -18,7 +18,7 @@ export default async function MeetingNotesPage({
 
   const sp = (await searchParams) ?? {};
   const q = sp.q ?? "";
-  let notes = await searchMeetingNotes(session.user.companyId, q, 100);
+  let notes = await searchMeetingNotes(session.user.companyId, session.user.id, q, 100);
   if (sp.status) notes = notes.filter((n) => n.noteStatus === sp.status);
 
   async function createAction(formData: FormData) {
@@ -35,7 +35,7 @@ export default async function MeetingNotesPage({
       <div>
         <h1 className="text-2xl font-semibold">Meeting Notes</h1>
         <p className="text-sm text-[var(--muted)] mt-1">
-          Capture discussions, assign owners, track status, and run the conversion pipeline.
+          Your notes stay private until you generate a summary and share workflow stages with teammates.
         </p>
       </div>
 

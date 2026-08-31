@@ -35,7 +35,7 @@ function fillSeries(order: string[], counts: Map<string, number>): ChartSlice[] 
   return order.map((name) => ({ name, value: counts.get(name) ?? 0 }));
 }
 
-export async function getOverviewCharts(companyId: string): Promise<OverviewChartsData> {
+export async function getOverviewCharts(companyId: string, userId: string): Promise<OverviewChartsData> {
   const now = new Date();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
@@ -97,7 +97,13 @@ export async function getOverviewCharts(companyId: string): Promise<OverviewChar
     prisma.meetingNoteReminder.findMany({
       where: {
         done: false,
-        meetingNote: { companyId },
+        meetingNote: {
+          companyId,
+          OR: [
+            { createdById: userId },
+            { AND: [{ shares: { some: { userId } } }, { summary: { isNot: null } }] },
+          ],
+        },
         dueAt: { lte: new Date(now.getTime() + 24 * 60 * 60 * 1000) },
       },
       include: { meetingNote: { select: { id: true, title: true } } },
@@ -107,6 +113,12 @@ export async function getOverviewCharts(companyId: string): Promise<OverviewChar
     prisma.meetingEvent.findMany({
       where: {
         companyId,
+        meetingNote: {
+          OR: [
+            { createdById: userId },
+            { AND: [{ shares: { some: { userId } } }, { summary: { isNot: null } }] },
+          ],
+        },
         startsAt: {
           gte: dayStart,
           lte: new Date(now.getTime() + 24 * 60 * 60 * 1000),

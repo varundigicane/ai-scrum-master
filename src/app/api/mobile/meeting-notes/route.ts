@@ -14,11 +14,11 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const q = url.searchParams.get("q") ?? "";
     const status = url.searchParams.get("status") ?? "";
-    const cacheKey = companyCacheKey(payload.companyId, "meeting-notes", `${q}:${status}`);
+    const cacheKey = companyCacheKey(payload.companyId, "meeting-notes", `${payload.sub}:${q}:${status}`);
     const cached = cacheGet<{ notes: unknown }>(cacheKey);
     if (cached) return NextResponse.json(cached);
 
-    let notes = await searchMeetingNotes(payload.companyId, q);
+    let notes = await searchMeetingNotes(payload.companyId, payload.sub, q);
     if (status) notes = notes.filter((n) => n.noteStatus === status);
     const body = { notes, templates: NOTE_TEMPLATES };
     cacheSet(cacheKey, body);

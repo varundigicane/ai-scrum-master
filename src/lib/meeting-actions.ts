@@ -14,7 +14,7 @@ import {
   composeMeetingLocation,
   provisionMeetingLinks,
 } from "@/lib/meeting-providers";
-import { createMeetingNoteRecord, updateMeetingNoteFields } from "@/lib/meeting-note-crm";
+import { createMeetingNoteRecord, updateMeetingNoteFields, requireAccessibleNote, requireOwnedNote } from "@/lib/meeting-note-crm";
 import type { MeetingNoteStatus } from "@/generated/prisma/enums";
 
 function revalidateMeeting(id?: string) {
@@ -63,10 +63,7 @@ export async function updateMeetingNote(formData: FormData): Promise<ActionResul
   try {
     const session = await assertFeature("meeting_notes");
     const id = String(formData.get("id") ?? "");
-    const note = await prisma.meetingNote.findFirst({
-      where: { id, companyId: session.user.companyId },
-    });
-    if (!note) return { ok: false, error: "Meeting note not found." };
+    const note = await requireOwnedNote(session.user.companyId, session.user.id, id);
 
     const title = String(formData.get("title") ?? note.title).trim();
     const rawNotes = notesBody(formData.get("rawNotes")) || note.rawNotes;
@@ -80,7 +77,7 @@ export async function updateMeetingNote(formData: FormData): Promise<ActionResul
       : note.noteStatus) as MeetingNoteStatus;
     const resourceIds = formData.getAll("resourceIds").map((v) => String(v));
 
-    await updateMeetingNoteFields(session.user.companyId, id, {
+    await updateMeetingNoteFields(session.user.companyId, session.user.id, id, {
       title,
       attendees: String(formData.get("attendees") ?? note.attendees).trim(),
       rawNotes,
@@ -98,10 +95,8 @@ export async function generateMeetingSummaryAction(formData: FormData): Promise<
   try {
     const session = await assertFeature("meeting_notes");
     const id = String(formData.get("id") ?? "");
-    const note = await prisma.meetingNote.findFirst({
-      where: { id, companyId: session.user.companyId },
-    });
-    if (!note) return { ok: false, error: "Meeting note not found." };
+    // Summary generation needs raw notes — owner only.
+    const note = await requireOwnedNote(session.user.companyId, session.user.id, id);
 
     const generated = await generateMeetingSummaryAi({
       title: note.title,
@@ -139,6 +134,7 @@ export async function generateProposalAction(formData: FormData): Promise<Action
   try {
     const session = await assertFeature("meeting_notes");
     const id = String(formData.get("id") ?? "");
+    await requireAccessibleNote(session.user.companyId, session.user.id, id);
     const note = await prisma.meetingNote.findFirst({
       where: { id, companyId: session.user.companyId },
       include: { summary: true },
@@ -148,10 +144,11 @@ export async function generateProposalAction(formData: FormData): Promise<Action
       return { ok: false, error: "Generate a summary before creating a proposal." };
     }
 
+    const isOwner = note.createdById === session.user.id;
     const generated = await generateProposalAi({
       title: note.title,
       summaryMd: note.summary.summaryMd,
-      rawNotes: note.rawNotes,
+      rawNotes: isOwner ? note.rawNotes : "",
       companyId: session.user.companyId,
     });
 
@@ -184,6 +181,9 @@ export async function saveProposalBody(formData: FormData): Promise<ActionResult
       where: { id: proposalId, companyId: session.user.companyId },
     });
     if (!proposal) return { ok: false, error: "Proposal not found." };
+    if (proposal.meetingNoteId) {
+      await requireAccessibleNote(session.user.companyId, session.user.id, proposal.meetingNoteId);
+    }
 
     await prisma.softwareProposal.update({
       where: { id: proposalId },
@@ -208,6 +208,9 @@ export async function generateFrsAction(formData: FormData): Promise<ActionResul
       where: { id: proposalId, companyId: session.user.companyId },
     });
     if (!proposal) return { ok: false, error: "Proposal not found." };
+    if (proposal.meetingNoteId) {
+      await requireAccessibleNote(session.user.companyId, session.user.id, proposal.meetingNoteId);
+    }
 
     const items = await generateFunctionalRequirementsAi({
       proposalTitle: proposal.title,
@@ -249,6 +252,9 @@ export async function pushFrsToBacklog(formData: FormData): Promise<ActionResult
       include: { requirements: { orderBy: { sortOrder: "asc" } } },
     });
     if (!proposal) return { ok: false, error: "Proposal not found." };
+    if (proposal.meetingNoteId) {
+      await requireAccessibleNote(session.user.companyId, session.user.id, proposal.meetingNoteId);
+    }
 
     const project = await prisma.project.findFirst({
       where: { id: projectId, account: { companyId: session.user.companyId } },
@@ -340,10 +346,7 @@ export async function createMeetingEvent(formData: FormData): Promise<ActionResu
 
     const meetingNoteId = String(formData.get("meetingNoteId") ?? "") || null;
     if (meetingNoteId) {
-      const note = await prisma.meetingNote.findFirst({
-        where: { id: meetingNoteId, companyId: session.user.companyId },
-      });
-      if (!note) return { ok: false, error: "Meeting note not found." };
+      await requireAccessibleNote(session.user.companyId, session.user.id, meetingNoteId);
     }
 
     const timezone = String(formData.get("timezone") ?? "Asia/Kolkata").trim() || "Asia/Kolkata";
@@ -458,6 +461,7 @@ export async function completeMeetingNoteReminder(formData: FormData): Promise<A
       companyId: session.user.companyId,
       noteId,
       reminderId,
+      userId: session.user.id,
     });
     revalidateMeeting(noteId);
     return { ok: true, message: "Reminder marked done." };
@@ -473,12 +477,32 @@ export async function linkMeetingNote(formData: FormData): Promise<ActionResult>
     const fromNoteId = String(formData.get("fromNoteId") ?? "");
     await linkNotesByHeading({
       companyId: session.user.companyId,
+      userId: session.user.id,
       fromNoteId,
       toNoteId: String(formData.get("toNoteId") ?? ""),
       heading: String(formData.get("heading") ?? ""),
     });
     revalidateMeeting(fromNoteId);
     return { ok: true, message: "Note linked." };
+  } catch (error) {
+    return { ok: false, error: toFriendlyError(error) };
+  }
+}
+
+export async function shareMeetingNote(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await assertFeature("meeting_notes");
+    const { setNoteShares } = await import("@/lib/meeting-note-crm");
+    const noteId = String(formData.get("noteId") ?? "");
+    const userIds = formData.getAll("userIds").map((v) => String(v));
+    await setNoteShares({
+      companyId: session.user.companyId,
+      noteId,
+      ownerUserId: session.user.id,
+      userIds,
+    });
+    revalidateMeeting(noteId);
+    return { ok: true, message: "Sharing updated." };
   } catch (error) {
     return { ok: false, error: toFriendlyError(error) };
   }

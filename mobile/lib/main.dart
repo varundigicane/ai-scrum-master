@@ -47,6 +47,7 @@ class _AiScrumAppState extends State<AiScrumApp> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', newToken);
     await prefs.remove('baseUrl');
+    await repo.clearOffline();
     final newApi = ApiClient(baseUrl: kApiBaseUrl, token: newToken);
     await initRepository(newApi);
     setState(() {

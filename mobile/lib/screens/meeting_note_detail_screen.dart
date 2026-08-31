@@ -414,16 +414,80 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
               const SizedBox(height: 12),
               TextField(controller: attendeesCtrl, decoration: const InputDecoration(labelText: 'Attendees')),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Expanded(child: Text('Notes', style: TextStyle(fontWeight: FontWeight.w600))),
-                  SpeechMicButton(onText: (t) => insertTextIntoQuill(notesController, t)),
-                ],
-              ),
-              QuillNotesEditor(controller: notesController, minHeight: 260),
+              if (note!['isOwner'] == false) ...[
+                Text(
+                  'Shared mode — raw notes are private to the creator. Work summary / proposal and later stages below.',
+                  style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 13),
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    const Expanded(child: Text('Notes', style: TextStyle(fontWeight: FontWeight.w600))),
+                    SpeechMicButton(onText: (t) => insertTextIntoQuill(notesController, t)),
+                  ],
+                ),
+                QuillNotesEditor(controller: notesController, minHeight: 260),
+                const SizedBox(height: 8),
+                ElevatedButton(onPressed: busy ? null : _saveNotes, child: const Text('Save notes')),
+              ],
               const SizedBox(height: 8),
-              ElevatedButton(onPressed: busy ? null : _saveNotes, child: const Text('Save notes')),
-              const SizedBox(height: 8),
+              if (note!['isOwner'] == true && summary != null)
+                OutlinedButton(
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final users = ((await repo.meetingNoteDetail(widget.noteId))['companyUsers'] as List?) ?? [];
+                          final selected = <String>{
+                            for (final s in ((note!['shares'] as List?) ?? []))
+                              if (s is Map && s['userId'] != null) s['userId'].toString(),
+                          };
+                          if (!mounted) return;
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => StatefulBuilder(
+                              builder: (ctx, setLocal) => AlertDialog(
+                                title: const Text('Share workflow'),
+                                content: SizedBox(
+                                  width: 360,
+                                  child: users.isEmpty
+                                      ? const Text('No other company users.')
+                                      : ListView(
+                                          shrinkWrap: true,
+                                          children: [
+                                            for (final raw in users)
+                                              CheckboxListTile(
+                                                dense: true,
+                                                value: selected.contains((raw as Map)['id']?.toString()),
+                                                title: Text('${raw['name']} (${raw['email']})'),
+                                                onChanged: (v) {
+                                                  setLocal(() {
+                                                    final id = raw['id']?.toString() ?? '';
+                                                    if (v == true) {
+                                                      selected.add(id);
+                                                    } else {
+                                                      selected.remove(id);
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                ),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                  ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+                                ],
+                              ),
+                            ),
+                          );
+                          if (ok == true) {
+                            await _run(
+                              () => repo.meetingAction(widget.noteId, 'share', {'userIds': selected.toList()}),
+                            );
+                          }
+                        },
+                  child: const Text('Share workflow'),
+                ),
               OutlinedButton(
                 onPressed: busy
                     ? null
@@ -607,7 +671,9 @@ class _MeetingNoteDetailScreenState extends State<MeetingNoteDetailScreen> {
                 runSpacing: 8,
                 children: [
                   ElevatedButton(
-                    onPressed: busy ? null : () => _run(() => repo.meetingAction(widget.noteId, 'summary')),
+                    onPressed: busy || note?['isOwner'] == false
+                        ? null
+                        : () => _run(() => repo.meetingAction(widget.noteId, 'summary')),
                     child: const Text('Generate summary'),
                   ),
                   ElevatedButton(

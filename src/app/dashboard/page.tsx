@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   const companyId = session!.user.companyId;
 
   const [charts, weekly, projectRows] = await Promise.all([
-    getOverviewCharts(companyId),
+    getOverviewCharts(companyId, session!.user.id),
     prisma.weeklyReport.findMany({
       where: { companyId },
       orderBy: { generatedAt: "desc" },

@@ -168,13 +168,18 @@ class Repository {
   }
 
   Future<List<dynamic>> meetingNotes({String q = '', String status = ''}) async {
-    final key = 'meeting-notes:$q:$status';
+    final scope = api.token?.hashCode.toString() ?? 'anon';
+    final key = '$scope:meeting-notes:$q:$status';
     final v = await _read(key, () async => await api.meetingNotes(q: q, status: status));
     return (v as List<dynamic>);
   }
 
-  Future<Map<String, dynamic>> meetingNoteDetail(String id) async =>
-      Map<String, dynamic>.from(await _read('meeting-note:$id', () => api.meetingNoteDetail(id)));
+  Future<Map<String, dynamic>> meetingNoteDetail(String id) async {
+    final scope = api.token?.hashCode.toString() ?? 'anon';
+    return Map<String, dynamic>.from(
+      await _read('$scope:meeting-note:$id', () => api.meetingNoteDetail(id)),
+    );
+  }
 
   Future<Map<String, dynamic>> settings() async =>
       Map<String, dynamic>.from(await _read('settings', () => api.settings()));

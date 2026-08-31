@@ -23,7 +23,7 @@ export async function GET(req: Request) {
       href: f.href,
     }));
 
-    const charts = await getOverviewCharts(payload.companyId);
+    const charts = await getOverviewCharts(payload.companyId, payload.sub);
 
     const body = {
       user: {

@@ -24,7 +24,7 @@ const faqs = [
   },
   {
     q: "Is customer data isolated between companies?",
-    a: "Yes. Every company is a tenant. Users, accounts, projects, meeting notes, and proposals are scoped by companyId so one tenant cannot read another tenant’s data.",
+    a: "Yes. Every company is a tenant. Users, accounts, projects, and most delivery data are scoped by companyId. Meeting notes are additionally private to their creator; after a summary exists, the creator can share later workflow stages (proposal, FRs, schedule) with selected company users — raw notes stay private.",
   },
   {
     q: "Is there a mobile app?",

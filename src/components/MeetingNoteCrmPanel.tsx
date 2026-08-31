@@ -34,6 +34,7 @@ export function MeetingNoteCrmPanel({
   reminders,
   linksFrom,
   otherNotes,
+  canEditMeta = true,
 }: {
   noteId: string;
   functionalId: string | null;
@@ -46,6 +47,7 @@ export function MeetingNoteCrmPanel({
   reminders: Reminder[];
   linksFrom: LinkRow[];
   otherNotes: NoteRef[];
+  canEditMeta?: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -74,6 +76,7 @@ export function MeetingNoteCrmPanel({
         </p>
       </div>
 
+      {canEditMeta ? (
       <div className="panel p-4 space-y-2">
         <h3 className="font-semibold">Status &amp; assignees</h3>
         <p className="text-xs text-[var(--muted)]">
@@ -109,6 +112,7 @@ export function MeetingNoteCrmPanel({
           ))}
         </div>
       </div>
+      ) : null}
 
       <div className="panel p-4 space-y-3">
         <h3 className="font-semibold">Comments (@mention resources by name)</h3>

@@ -18,7 +18,8 @@ import {
 } from "@/lib/meeting-actions";
 import { getMeetingProvidersStatus } from "@/lib/meeting-providers";
 import { MeetingNoteCrmPanel } from "@/components/MeetingNoteCrmPanel";
-import { getMeetingNoteDetail } from "@/lib/meeting-note-crm";
+import { MeetingNoteSharePanel } from "@/components/MeetingNoteSharePanel";
+import { accessibleNoteWhere, getMeetingNoteDetail } from "@/lib/meeting-note-crm";
 
 export default async function MeetingNoteDetailPage({
   params,
@@ -33,8 +34,9 @@ export default async function MeetingNoteDetailPage({
   const { id } = await params;
   const sp = (await searchParams) ?? {};
 
-  const note = await getMeetingNoteDetail(session.user.companyId, id);
+  const note = await getMeetingNoteDetail(session.user.companyId, session.user.id, id);
   if (!note) notFound();
+  const isOwner = note.isOwner;
 
   const projects = await prisma.project.findMany({
     where: { account: { companyId: session.user.companyId }, active: true },
@@ -47,11 +49,19 @@ export default async function MeetingNoteDetailPage({
     orderBy: { name: "asc" },
   });
   const otherNotes = await prisma.meetingNote.findMany({
-    where: { companyId: session.user.companyId, NOT: { id } },
+    where: { companyId: session.user.companyId, NOT: { id }, ...accessibleNoteWhere(session.user.id) },
     select: { id: true, title: true, functionalId: true },
     orderBy: { updatedAt: "desc" },
     take: 50,
   });
+  const companyUsers = isOwner
+    ? await prisma.user.findMany({
+        where: { companyId: session.user.companyId, active: true, NOT: { id: session.user.id } },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+        take: 100,
+      })
+    : [];
   const providers = await getMeetingProvidersStatus(session.user.companyId);
 
   async function withRedirect(
@@ -83,8 +93,10 @@ export default async function MeetingNoteDetailPage({
   let nextForm: React.ReactNode = null;
 
   if (!hasSummary) {
-    nextLabel = "Generate an AI summary from these notes";
-    nextForm = (
+    nextLabel = isOwner
+      ? "Generate an AI summary from these notes"
+      : "Waiting for the creator to generate a summary";
+    nextForm = isOwner ? (
       <form
         action={async () => {
           "use server";
@@ -97,7 +109,7 @@ export default async function MeetingNoteDetailPage({
           Generate summary
         </button>
       </form>
-    );
+    ) : null;
   } else if (!hasProposal) {
     nextLabel = "Create a software proposal from the summary";
     nextForm = (
@@ -173,6 +185,7 @@ export default async function MeetingNoteDetailPage({
           </h1>
           <p className="text-sm text-[var(--muted)] mt-1">
             Created {note.createdAt.toLocaleString()} · Updated {note.updatedAt.toLocaleString()}
+            {isOwner ? "" : " · Shared with you (workflow stages)"}
           </p>
         </div>
         {note.proposal ? (
@@ -191,26 +204,41 @@ export default async function MeetingNoteDetailPage({
 
       <MeetingPipelineStepper steps={steps} nextLabel={nextLabel} nextForm={nextForm} />
 
+      <MeetingNoteSharePanel
+        noteId={id}
+        canShare={isOwner}
+        hasSummary={hasSummary}
+        companyUsers={companyUsers}
+        sharedUserIds={note.shares.map((s) => s.userId)}
+      />
+
       <section className="panel p-4 space-y-3" id="step-notes">
         <h2 className="font-semibold">1. Notes</h2>
-        <form
-          id="note-main-form"
-          action={async (fd) => {
-            "use server";
-            fd.set("id", id);
-            await withRedirect(updateMeetingNote, fd);
-          }}
-          className="grid gap-3"
-        >
-          <MeetingNoteFields
-            defaultTitle={note.title}
-            defaultAttendees={note.attendees}
-            defaultNotesHtml={note.rawNotes}
-          />
-          <button className="btn w-fit" type="submit">
-            Save notes
-          </button>
-        </form>
+        {isOwner ? (
+          <form
+            id="note-main-form"
+            action={async (fd) => {
+              "use server";
+              fd.set("id", id);
+              await withRedirect(updateMeetingNote, fd);
+            }}
+            className="grid gap-3"
+          >
+            <MeetingNoteFields
+              defaultTitle={note.title}
+              defaultAttendees={note.attendees}
+              defaultNotesHtml={note.rawNotes}
+            />
+            <button className="btn w-fit" type="submit">
+              Save notes
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            Raw meeting notes are private to the creator. You can work summary, proposal, and later
+            stages in shared mode.
+          </p>
+        )}
       </section>
 
       <MeetingNoteCrmPanel
@@ -225,23 +253,26 @@ export default async function MeetingNoteDetailPage({
         reminders={note.reminders}
         linksFrom={note.linksFrom}
         otherNotes={otherNotes}
+        canEditMeta={isOwner}
       />
 
       <section className="panel p-4 space-y-3" id="step-summary">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold">2. Summary</h2>
-          <form
-            action={async () => {
-              "use server";
-              const fd = new FormData();
-              fd.set("id", id);
-              await withRedirect(generateMeetingSummaryAction, fd);
-            }}
-          >
-            <button className="btn text-sm" type="submit">
-              {hasSummary ? "Regenerate summary" : "Generate summary"}
-            </button>
-          </form>
+          {isOwner ? (
+            <form
+              action={async () => {
+                "use server";
+                const fd = new FormData();
+                fd.set("id", id);
+                await withRedirect(generateMeetingSummaryAction, fd);
+              }}
+            >
+              <button className="btn text-sm" type="submit">
+                {hasSummary ? "Regenerate summary" : "Generate summary"}
+              </button>
+            </form>
+          ) : null}
         </div>
         {note.summary ? (
           <pre className="whitespace-pre-wrap text-sm bg-[var(--panel-2)] rounded-lg p-3 border border-[var(--border)]">

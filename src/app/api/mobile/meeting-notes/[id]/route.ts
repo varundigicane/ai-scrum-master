@@ -15,10 +15,14 @@ import type { MeetingNoteStatus, RequirementKind, TaskKind } from "@/generated/p
 import {
   addNoteComment,
   addNoteReminder,
+  accessibleNoteWhere,
   completeNoteReminder,
   getMeetingNoteDetail,
   linkNotesByHeading,
   noteToMarkdown,
+  requireAccessibleNote,
+  requireOwnedNote,
+  setNoteShares,
   updateMeetingNoteFields,
 } from "@/lib/meeting-note-crm";
 
@@ -30,7 +34,7 @@ export async function GET(req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const url = new URL(req.url);
     if (url.searchParams.get("format") === "md") {
-      const note = await getMeetingNoteDetail(payload.companyId, id);
+      const note = await getMeetingNoteDetail(payload.companyId, payload.sub, id);
       if (!note) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
       const md = noteToMarkdown(note);
       return new NextResponse(md, {
@@ -40,7 +44,7 @@ export async function GET(req: Request, ctx: Ctx) {
         },
       });
     }
-    const note = await getMeetingNoteDetail(payload.companyId, id);
+    const note = await getMeetingNoteDetail(payload.companyId, payload.sub, id);
     if (!note) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
     const resources = await prisma.resource.findMany({
       where: { companyId: payload.companyId, active: true },
@@ -48,12 +52,20 @@ export async function GET(req: Request, ctx: Ctx) {
       orderBy: { name: "asc" },
     });
     const otherNotes = await prisma.meetingNote.findMany({
-      where: { companyId: payload.companyId, NOT: { id } },
+      where: { companyId: payload.companyId, NOT: { id }, ...accessibleNoteWhere(payload.sub) },
       select: { id: true, title: true, functionalId: true },
       orderBy: { updatedAt: "desc" },
       take: 50,
     });
-    return NextResponse.json({ note, resources, otherNotes });
+    const companyUsers = note.isOwner
+      ? await prisma.user.findMany({
+          where: { companyId: payload.companyId, active: true, NOT: { id: payload.sub } },
+          select: { id: true, name: true, email: true },
+          orderBy: { name: "asc" },
+          take: 100,
+        })
+      : [];
+    return NextResponse.json({ note, resources, otherNotes, companyUsers });
   } catch (error) {
     return mobileErrorResponse(error);
   }
@@ -70,7 +82,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       noteStatus?: MeetingNoteStatus;
       resourceIds?: string[];
     };
-    const updated = await updateMeetingNoteFields(payload.companyId, id, {
+    const updated = await updateMeetingNoteFields(payload.companyId, payload.sub, id, {
       title: body.title,
       attendees: body.attendees,
       rawNotes: body.rawNotes,
@@ -93,19 +105,24 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
     const note = await prisma.meetingNote.findFirst({
-      where: { id, companyId: payload.companyId },
+      where: { id, companyId: payload.companyId, ...accessibleNoteWhere(payload.sub) },
       include: {
         summary: true,
         proposal: { include: { requirements: { orderBy: { sortOrder: "asc" } } } },
       },
     });
     if (!note) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
+    const isOwner = note.createdById === payload.sub;
 
     if (action === "summary") {
+      if (!isOwner) {
+        return NextResponse.json({ error: "Only the note creator can generate a summary." }, { status: 403 });
+      }
+      const owned = await requireOwnedNote(payload.companyId, payload.sub, id);
       const generated = await generateMeetingSummaryAi({
-        title: note.title,
-        attendees: note.attendees,
-        rawNotes: note.rawNotes,
+        title: owned.title,
+        attendees: owned.attendees,
+        rawNotes: owned.rawNotes,
         companyId: payload.companyId,
       });
       await prisma.meetingSummary.upsert({
@@ -136,7 +153,7 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
       const generated = await generateProposalAi({
         title: note.title,
         summaryMd: note.summary.summaryMd,
-        rawNotes: note.rawNotes,
+        rawNotes: isOwner ? note.rawNotes : "",
         companyId: payload.companyId,
       });
       await prisma.softwareProposal.upsert({
@@ -369,13 +386,31 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
         companyId: payload.companyId,
         noteId: id,
         reminderId,
+        userId: payload.sub,
       });
       return NextResponse.json({ reminder, message: "Reminder marked done." });
+    }
+
+    if (action === "share") {
+      if (!isOwner) {
+        return NextResponse.json({ error: "Only the note creator can manage sharing." }, { status: 403 });
+      }
+      const userIds = Array.isArray(body.userIds)
+        ? body.userIds.map((v) => String(v))
+        : [];
+      const shares = await setNoteShares({
+        companyId: payload.companyId,
+        noteId: id,
+        ownerUserId: payload.sub,
+        userIds,
+      });
+      return NextResponse.json({ shares, message: "Sharing updated." });
     }
 
     if (action === "link") {
       const link = await linkNotesByHeading({
         companyId: payload.companyId,
+        userId: payload.sub,
         fromNoteId: id,
         toNoteId: String(body.toNoteId ?? ""),
         heading: String(body.heading ?? ""),
@@ -384,7 +419,7 @@ export async function postMeetingNoteAction(req: Request, ctx: Ctx, actionOverri
     }
 
     if (action === "export-md") {
-      const full = await getMeetingNoteDetail(payload.companyId, id);
+      const full = await getMeetingNoteDetail(payload.companyId, payload.sub, id);
       if (!full) return NextResponse.json({ error: "Meeting note not found." }, { status: 404 });
       return NextResponse.json({ markdown: noteToMarkdown(full) });
     }
